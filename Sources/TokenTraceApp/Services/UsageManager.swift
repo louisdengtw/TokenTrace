@@ -21,7 +21,7 @@ final class UsageManager: ObservableObject {
 
     private let api: ClaudeAPI
     private let pollInterval: TimeInterval
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "UsageManager")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "UsageManager")
 
     private var pollTask: Task<Void, Never>?
     private var notifiedThresholdsThisWindow: Set<Int> = []
@@ -111,7 +111,7 @@ final class UsageManager: ObservableObject {
         }
     }
 
-    private func apply(response: ClaudeUsageResponse) {
+    private func apply(response: TokenTraceResponse) {
         store.insert(samples: response.samples)
         var merged = latestSample
         for sample in response.samples {

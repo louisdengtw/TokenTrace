@@ -3,12 +3,39 @@ import OSLog
 import Security
 
 enum CookieKeychain {
-    private static let service = "dev.louisdeng.claudeusage.session"
+    private static let service = "dev.louisdeng.tokentrace.session"
+    /// Pre-rename service from when the app was named ClaudeUsage. `read()`
+    /// transparently migrates from this on first call, then deletes it.
+    private static let legacyService = "dev.louisdeng.claudeusage.session"
     private static let account = "claude_session"
-    private static let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "CookieKeychain")
+    private static let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "CookieKeychain")
 
     @discardableResult
     static func save(_ cookie: String) -> Bool {
+        upsert(cookie, service: service)
+    }
+
+    static func read() -> String? {
+        if let cookie = readFrom(service: service) { return cookie }
+
+        // One-time migration from the pre-rename keychain entry.
+        if let legacy = readFrom(service: legacyService) {
+            log.notice("Migrating cookie from legacy keychain service \(legacyService, privacy: .public)")
+            _ = upsert(legacy, service: service)
+            deleteFrom(service: legacyService)
+            return legacy
+        }
+        return nil
+    }
+
+    static func delete() {
+        deleteFrom(service: service)
+    }
+
+    // MARK: - Helpers
+
+    @discardableResult
+    private static func upsert(_ cookie: String, service: String) -> Bool {
         let data = Data(cookie.utf8)
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -36,7 +63,7 @@ enum CookieKeychain {
         return true
     }
 
-    static func read() -> String? {
+    private static func readFrom(service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -48,7 +75,7 @@ enum CookieKeychain {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
         if status != errSecSuccess {
-            log.error("Keychain read failed status=\(status, privacy: .public)")
+            log.error("Keychain read failed status=\(status, privacy: .public) service=\(service, privacy: .public)")
             return nil
         }
         guard let data = result as? Data, let cookie = String(data: data, encoding: .utf8) else {
@@ -57,7 +84,7 @@ enum CookieKeychain {
         return cookie
     }
 
-    static func delete() {
+    private static func deleteFrom(service: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -65,7 +92,7 @@ enum CookieKeychain {
         ]
         let status = SecItemDelete(query as CFDictionary)
         if status != errSecSuccess && status != errSecItemNotFound {
-            log.error("Keychain delete failed status=\(status, privacy: .public)")
+            log.error("Keychain delete failed status=\(status, privacy: .public) service=\(service, privacy: .public)")
         }
     }
 }

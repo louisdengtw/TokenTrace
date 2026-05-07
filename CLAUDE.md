@@ -1,87 +1,112 @@
-# ClaudeUsage
+# TokenTrace
 
-Native macOS menu bar + main-window app that polls `claude.ai` for usage and visualizes history. Greenfield rewrite of `Artzainnn/ClaudeUsageBar`; salvages only the API integration.
+Native macOS app for monitoring + visualizing personal `claude.ai` subscription
+usage over time. Polls the same `/api/organizations/{id}/usage` endpoint
+upstream `Artzainnn/ClaudeUsageBar` reverse-engineered, stores each poll in a
+local SQLite store, and renders trends + reset markers in a SwiftUI Charts
+dashboard. Menu bar item is a quick-glance accessory, not the main surface.
+
+The local working directory is still named `ClaudeUsage` (legacy) but the
+product, repo, and bundle ID are all `TokenTrace` / `dev.louisdeng.tokentrace`.
 
 ## Start here
 
 Read `openspec/changes/rewrite-as-claudeusage/` — that is the source of truth.
+The change directory name keeps the historical "rewrite-as-claudeusage" label
+because the project was originally framed as a rewrite of ClaudeUsageBar; the
+product was renamed to TokenTrace mid-development.
 
 | File | What |
 |---|---|
 | `proposal.md` | Why + scope + 6 capabilities |
-| `design.md` | Architecture decisions, trade-offs, open questions |
+| `design.md` | Architecture decisions (Decision 1 has a 2026-05-07 amendment) |
 | `specs/<capability>/spec.md` | Per-capability requirements & scenarios |
-| `tasks.md` | 11 groups, ~60 tasks. **Start at task 1.1.** |
+| `tasks.md` | 13 groups |
 
 Progress: `openspec status --change rewrite-as-claudeusage`.
-Implementation: `/opsx:apply` walks tasks one at a time.
 
-## Salvage map (old repo)
+## Salvage map (only one file is genuinely upstream-derived)
 
-Only copy these from `~/worksapce/ClaudeUsageBar/app/ClaudeUsageBar.swift`:
+`Sources/TokenTraceApp/Services/ClaudeAPI.swift` carries logic adapted from
+`~/worksapce/ClaudeUsageBar/app/ClaudeUsageBar.swift`:
 
-| What | Approx lines | Notes |
+| What | Approx upstream lines | Notes |
 |---|---|---|
-| `CookieKeychain` enum | 370–435 | Change service to `dev.louisdeng.claudeusage.session` |
 | `fetchOrganizationId` | 568–642 | Cookie-then-bootstrap fallback, auth-fail detection |
 | `fetchUsageWithOrgId` + `parseUsageData` | 668–890 | Multi-signal auth detection, ISO8601 parsing |
 
-Do **not** copy: AppDelegate glue, the popover `UsageView`, settings UI, custom `NSTextField` paste hacks. Rewrite cleaner per `design.md` §5 (module layout).
+That file has an in-source notice header. `LICENSE-CLAUDEUSAGEBAR` at the repo
+root preserves upstream's MIT terms verbatim.
 
-**Every salvaged file must carry a file-level notice header** (per task 1.12). The notice points to `LICENSE-CLAUDEUSAGEBAR` at the repo root, which preserves upstream's MIT terms verbatim. Repo-root `LICENSE` is Louis's own MIT for the new code; it ends with a pointer to `LICENSE-CLAUDEUSAGEBAR`.
-
-```swift
-// Portions of this file are derived from ClaudeUsageBar (MIT licensed).
-// Source: https://github.com/Artzainnn/ClaudeUsageBar
-// Copyright (c) 2026 ClaudeUsageBar — see LICENSE-CLAUDEUSAGEBAR for full terms.
-```
+`CookieKeychain.swift` is **not** upstream-derived — Louis added it in his
+fork (commit 7233746 "feat: add email auto sign-in with secure cookie storage
+and refined UI"). No notice there.
 
 ## Build & sign on this Mac
 
-- Bundle ID: **`dev.louisdeng.claudeusage`**. Never `com.claude.usagebar` — macOS 26 has it blacklisted (see "If menu bar icon disappears" below).
-- Self-signed cert in login keychain: `F690B9DA81D392695487D52D35F6B37E7A362495` ("LouisLocalSign"). Build script should prefer it, fall back to ad-hoc.
+- Bundle ID: **`dev.louisdeng.tokentrace`**. Never `com.claude.usagebar` —
+  macOS 26 has it blacklisted (see "If menu bar icon disappears" below).
+- Self-signed cert in login keychain: `F690B9DA81D392695487D52D35F6B37E7A362495`
+  ("LouisLocalSign"). Build script prefers it, falls back to ad-hoc.
 - Min macOS: **13.0** (SwiftUI Charts requirement).
-- After rebuild, always `pkill -x ClaudeUsage` before `open` — `open` won't replace a running app of the same bundle ID.
-- Every rebuild invalidates Accessibility grant and prompts Keychain again. Not a bug; ad-hoc signing's fault.
+- After rebuild, always `pkill -x TokenTrace` before `open` — `open` won't
+  replace a running app of the same bundle ID.
+- Every rebuild invalidates Accessibility grant and prompts Keychain again.
+  Not a bug; ad-hoc signing's fault.
 
 ## If menu bar icon disappears (macOS 26 bundle ID poisoning)
 
-Diagnose: `osascript -e 'tell application "System Events" to tell process "ClaudeUsage" to get position of menu bar items of menu bar 1'`
+Diagnose:
+```sh
+osascript -e 'tell application "System Events" to tell process "TokenTrace" to get position of menu bar items of menu bar 1'
+```
 - `Y = 4` → healthy
 - `Y = -1` or `Y > 50` → blacklisted
+
+(On macOS 26 status items moved out of the per-process AX menu bar; if the
+above returns the application menu bar items at Y=0, that's also healthy —
+the blacklist signature is missing items, not Y=4 specifically.)
 
 Reboot + `lsregister -r` are **not** enough. Deep reset:
 
 ```sh
-pkill -x ClaudeUsage
-defaults delete dev.louisdeng.claudeusage 2>/dev/null
-rm -rf ~/Library/{Preferences,Caches,Application\ Support,Saved\ Application\ State,HTTPStorages,WebKit,Containers,Group\ Containers}/dev.louisdeng.claudeusage*
-tccutil reset All dev.louisdeng.claudeusage
-rm -rf /Applications/ClaudeUsage.app
-cp -R <build>/ClaudeUsage.app /Applications/
+pkill -x TokenTrace
+defaults delete dev.louisdeng.tokentrace 2>/dev/null
+rm -rf ~/Library/{Preferences,Caches,Application\ Support,Saved\ Application\ State,HTTPStorages,WebKit,Containers,Group\ Containers}/dev.louisdeng.tokentrace*
+tccutil reset All dev.louisdeng.tokentrace
+rm -rf /Applications/TokenTrace.app
+cp -R <build>/TokenTrace.app /Applications/
 killall ControlCenter NotificationCenter cfprefsd
 sleep 3
-open /Applications/ClaudeUsage.app
+open /Applications/TokenTrace.app
 ```
-
-Full recipe with backstory: `~/worksapce/ClaudeUsageBar/TROUBLESHOOTING.md`.
 
 ## Communicating with the user
 
-- Replies in 繁中 + English, terse, tables for comparisons. No fluff, no end-of-turn restatement.
-- First-time GitHub PR contributor; comfortable in terminal but **new to Swift / AppKit**. Frame Swift-specific reasoning explicitly when relevant.
+- Replies in 繁中 + English, terse, tables for comparisons. No fluff, no
+  end-of-turn restatement.
+- First-time GitHub PR contributor; comfortable in terminal but **new to
+  Swift / AppKit**. Frame Swift-specific reasoning explicitly when relevant.
 - For PR scope concerns, offer to split rather than force-pushing rewrites.
+- When Louis says "discuss requirements first", reset to first principles
+  — don't take existing proposal/design/predecessor code as authority. See
+  `feedback_requirements_first_no_predecessor_inheritance.md` in memory.
 
 ## Git on this repo
 
-- `user.email` already set locally to `281707863+louisdengtw@users.noreply.github.com` (GitHub email-privacy block otherwise rejects pushes).
-- No remote yet. Repo `louisdengtw/ClaudeUsage` on GitHub not created. Tasks 11.1–11.2 cover that.
+- `user.email` already set locally to
+  `281707863+louisdengtw@users.noreply.github.com` (GitHub email-privacy block
+  otherwise rejects pushes).
+- No remote yet. GitHub repo `louisdengtw/TokenTrace` not yet created.
+  Group 11 in tasks.md covers that.
 
 ## Current state
 
-- Repo initialized, no commits yet.
-- Only `openspec/` is populated. No `Package.swift`, no `Sources/`, no app code.
-- Task 1.1 partially done: directory + `git init` + openspec copied. Next: `Package.swift` (task 1.2).
+- Most of v1 implemented (groups 1–9, plus the 12/13 design pivot work
+  added during exploration).
+- Verification group 10: 8/9 manual smoke tests passed; 10.8 (open at login
+  reboot test) outstanding.
+- Group 11 (publishing): not yet executed.
 
 ## API endpoints used (for reference)
 
@@ -91,4 +116,8 @@ GET https://claude.ai/api/organizations/{org_id}/usage    → {five_hour, seven_
                                                             each: { utilization (0-100), resets_at (ISO8601) }
 ```
 
-Auth: full Cookie header pasted from browser (`sessionKey` is httpOnly so JS can't grab it; embedded WebView OAuth is blocked by Google Identity Services). Cookie stored in Keychain. Solving the auth UX is **out of scope for v1**.
+Auth: full Cookie header pasted from browser (`sessionKey` is httpOnly so JS
+can't grab it; embedded WebView OAuth is blocked by Google Identity Services).
+Cookie stored in Keychain. Anthropic banned third-party OAuth in Feb 2026, so
+cookie-paste remains the only viable path for a personal monitoring tool;
+solving the auth UX further is **out of scope for v1**.

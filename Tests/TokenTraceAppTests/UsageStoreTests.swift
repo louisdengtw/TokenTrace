@@ -1,12 +1,12 @@
 import XCTest
-@testable import ClaudeUsageApp
+@testable import TokenTraceApp
 
 final class UsageStoreTests: XCTestCase {
     private var dbURL: URL!
 
     override func setUpWithError() throws {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ClaudeUsageStoreTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("TokenTraceStoreTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         dbURL = dir.appendingPathComponent("usage.sqlite")
     }

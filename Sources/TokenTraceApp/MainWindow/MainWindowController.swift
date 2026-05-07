@@ -38,7 +38,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "ClaudeUsage"
+        window.title = "TokenTrace"
         window.contentViewController = hosting
         window.isReleasedWhenClosed = false
         window.center()

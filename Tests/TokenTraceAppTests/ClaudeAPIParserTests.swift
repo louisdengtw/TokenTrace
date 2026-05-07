@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageApp
+@testable import TokenTraceApp
 
 final class ClaudeAPIParserTests: XCTestCase {
     private let pollTime = Date(timeIntervalSince1970: 1_704_067_200) // 2024-01-01T00:00Z

@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var openAtLoginOn = AppSettings.openAtLoginEnabled
     @State private var openAtLoginErrorMessage: String?
 
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "SettingsView")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "SettingsView")
 
     var body: some View {
         Form {

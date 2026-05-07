@@ -2,7 +2,7 @@ import AppKit
 
 extension Notification.Name {
     /// Posted by the View menu's Toggle Sidebar item; observed in `MainWindowContent`.
-    static let toggleSidebar = Notification.Name("dev.louisdeng.claudeusage.toggleSidebar")
+    static let toggleSidebar = Notification.Name("dev.louisdeng.tokentrace.toggleSidebar")
 }
 
 @MainActor
@@ -31,9 +31,9 @@ enum MainMenuBuilder {
     // MARK: - Application
 
     private static func buildApplicationMenu(target: AppDelegate) -> NSMenu {
-        let menu = NSMenu(title: "ClaudeUsage")
+        let menu = NSMenu(title: "TokenTrace")
 
-        menu.addItem(withTitle: "About ClaudeUsage",
+        menu.addItem(withTitle: "About TokenTrace",
                      action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                      keyEquivalent: "")
 
@@ -57,7 +57,7 @@ enum MainMenuBuilder {
 
         menu.addItem(.separator())
 
-        menu.addItem(withTitle: "Hide ClaudeUsage",
+        menu.addItem(withTitle: "Hide TokenTrace",
                      action: #selector(NSApplication.hide(_:)),
                      keyEquivalent: "h")
 
@@ -77,7 +77,7 @@ enum MainMenuBuilder {
 
         // Standard ⌘Q. Routed through `applicationShouldTerminate(_:)`,
         // which intercepts unless `userInitiatedQuit` is set.
-        menu.addItem(withTitle: "Quit ClaudeUsage",
+        menu.addItem(withTitle: "Quit TokenTrace",
                      action: #selector(NSApplication.terminate(_:)),
                      keyEquivalent: "q")
 
@@ -165,7 +165,7 @@ enum MainMenuBuilder {
 
     private static func buildHelpMenu() -> NSMenu {
         let menu = NSMenu(title: "Help")
-        let help = NSMenuItem(title: "ClaudeUsage Help", action: nil, keyEquivalent: "?")
+        let help = NSMenuItem(title: "TokenTrace Help", action: nil, keyEquivalent: "?")
         menu.addItem(help)
         return menu
     }

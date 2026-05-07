@@ -3,7 +3,7 @@ import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "AppDelegate")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "AppDelegate")
 
     private var usageManager: UsageManager!
     private var statusItemController: StatusItemController!

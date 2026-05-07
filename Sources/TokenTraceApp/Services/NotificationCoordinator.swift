@@ -4,7 +4,7 @@ import UserNotifications
 
 @MainActor
 final class NotificationCoordinator {
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "Notifications")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "Notifications")
     private let center = UNUserNotificationCenter.current()
 
     @discardableResult

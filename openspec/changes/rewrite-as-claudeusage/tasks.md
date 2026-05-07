@@ -1,17 +1,17 @@
 ## 1. Repository and Build System Setup
 
-- [x] 1.1 Create new local directory `~/worksapce/ClaudeUsage/` and initialize as a git repository.
-- [x] 1.2 Create `Package.swift` declaring an executable target `ClaudeUsageApp`, platforms `[.macOS(.v13)]`, no external dependencies.
-- [x] 1.3 Scaffold the `Sources/ClaudeUsageApp/` directory tree per the layout in `design.md` (App / MenuBar / MainWindow / Services / Persistence / Models, plus `Tests/`).
-- [x] 1.4 Copy and adapt `Resources/Info.plist` from the old repo, setting `CFBundleIdentifier = dev.louisdeng.claudeusage`, `LSMinimumSystemVersion = 13.0`, `LSUIElement = true`, `CFBundleName = ClaudeUsage`.
-- [x] 1.5 Generate `Resources/ClaudeUsage.icns` (can reuse the old icon for v1, restyle later).
-- [x] 1.6 Write `tools/build-app.sh` that runs `swift build -c release --arch arm64 --arch x86_64`, assembles `ClaudeUsage.app/Contents/{MacOS,Resources}`, copies `Info.plist` and `.icns`, runs `codesign --force --deep --sign F690B9DA81D392695487D52D35F6B37E7A362495 ClaudeUsage.app` (with ad-hoc fallback), and optionally `open`s the result.
+- [x] 1.1 Create new local directory `~/worksapce/TokenTrace/` and initialize as a git repository.
+- [x] 1.2 Create `Package.swift` declaring an executable target `TokenTraceApp`, platforms `[.macOS(.v13)]`, no external dependencies.
+- [x] 1.3 Scaffold the `Sources/TokenTraceApp/` directory tree per the layout in `design.md` (App / MenuBar / MainWindow / Services / Persistence / Models, plus `Tests/`).
+- [x] 1.4 Copy and adapt `Resources/Info.plist` from the old repo, setting `CFBundleIdentifier = dev.louisdeng.tokentrace`, `LSMinimumSystemVersion = 13.0`, `LSUIElement = true`, `CFBundleName = TokenTrace`.
+- [x] 1.5 Generate `Resources/TokenTrace.icns` (can reuse the old icon for v1, restyle later).
+- [x] 1.6 Write `tools/build-app.sh` that runs `swift build -c release --arch arm64 --arch x86_64`, assembles `TokenTrace.app/Contents/{MacOS,Resources}`, copies `Info.plist` and `.icns`, runs `codesign --force --deep --sign F690B9DA81D392695487D52D35F6B37E7A362495 TokenTrace.app` (with ad-hoc fallback), and optionally `open`s the result.
 - [x] 1.7 Verify `swift build` succeeds on an empty `App.swift` containing only `@main struct App { static func main() {} }`.
 - [x] 1.8 Add `.gitignore` for `.build/`, `.swiftpm/`, `*.app`, `*.xcodeproj/xcuserdata/`.
 - [x] 1.9 Add `LICENSE` (MIT, `Copyright (c) 2026 Louis Deng`) at repo root, with a trailing notice that points to `LICENSE-CLAUDEUSAGEBAR` for the upstream-derived portions.
 - [x] 1.10 Add `LICENSE-CLAUDEUSAGEBAR` containing the upstream MIT license text verbatim (preserving its `Copyright (c) 2026 ClaudeUsageBar` line) plus a short header listing which source files include derived portions.
 - [x] 1.11 Add a placeholder `README.md` with a "Credits" section that names `Artzainnn/ClaudeUsageBar` and explains the salvage scope (API integration only).
-- [x] 1.12 Add file-level notice headers to each Swift file that includes derived code (initially `Sources/ClaudeUsageApp/Services/ClaudeAPI.swift` and `Sources/ClaudeUsageApp/Services/CookieKeychain.swift`):
+- [x] 1.12 Add file-level notice headers to each Swift file that includes derived code (initially `Sources/TokenTraceApp/Services/ClaudeAPI.swift` and `Sources/TokenTraceApp/Services/CookieKeychain.swift`):
 - [x] 1.13 Add `Makefile` at repo root with `build / install / run / test / clean / help` targets; `tools/build-app.sh` becomes pure-build (drop the `--open` flag, Makefile's `run` target replaces it).
   ```swift
   // Portions of this file are derived from ClaudeUsageBar (MIT licensed).
@@ -23,15 +23,15 @@
 
 - [x] 2.1 Define `Bucket` enum (`fiveHour`, `sevenDay`, `sevenDaySonnet`) with `rawValue` matching the SQL `bucket` column strings.
 - [x] 2.2 Define `UsageSample` struct: `(ts: Date, bucket: Bucket, util: Double, resetsAt: Date)`.
-- [x] 2.3 Implement `UsageStore.swift`: open or create the SQLite database at `~/Library/Application Support/dev.louisdeng.claudeusage/usage.sqlite`, run DDL on first creation, expose `insert(samples:)` and `query(bucket:from:to:)`.
+- [x] 2.3 Implement `UsageStore.swift`: open or create the SQLite database at `~/Library/Application Support/dev.louisdeng.tokentrace/usage.sqlite`, run DDL on first creation, expose `insert(samples:)` and `query(bucket:from:to:)`.
 - [x] 2.4 Implement reset-event detection helper (walks ordered samples, emits events when `resets_at` increases).
 - [x] 2.5 Implement `SQLITE_BUSY` retry (3 attempts, short delay) and graceful error logging for other SQLite errors.
-- [x] 2.6 Write `Tests/ClaudeUsageAppTests/UsageStoreTests.swift` covering: fresh DB creation, insert + query roundtrip, `INSERT OR REPLACE` on duplicate `(ts, bucket)`, empty-range query.
-- [x] 2.7 Write `Tests/ClaudeUsageAppTests/ResetDetectionTests.swift` covering: single reset, no reset, multiple consecutive resets.
+- [x] 2.6 Write `Tests/TokenTraceAppTests/UsageStoreTests.swift` covering: fresh DB creation, insert + query roundtrip, `INSERT OR REPLACE` on duplicate `(ts, bucket)`, empty-range query.
+- [x] 2.7 Write `Tests/TokenTraceAppTests/ResetDetectionTests.swift` covering: single reset, no reset, multiple consecutive resets.
 
 ## 3. Claude API Integration
 
-- [x] 3.1 Salvage and refactor `CookieKeychain` from the old repo into `Services/CookieKeychain.swift`. Update service name to `dev.louisdeng.claudeusage.session`.
+- [x] 3.1 Salvage and refactor `CookieKeychain` from the old repo into `Services/CookieKeychain.swift`. Update service name to `dev.louisdeng.tokentrace.session`.
 - [x] 3.2 Implement `Services/ClaudeAPI.swift` with `fetchOrgId(cookie:)` and `fetchUsage(cookie:orgId:)` async methods. Carry over the cookie-then-bootstrap fallback logic and the multi-signal auth-failure detection (status, redirect, content-type) from the old code.
 - [x] 3.3 Define a `ClaudeAPIError` enum with cases for `sessionExpired`, `parseError(String)`, `httpError(Int)`, `network(Error)`.
 - [x] 3.4 Parse the usage response into an array of `UsageSample` (one per present bucket) using ISO8601 with fractional seconds for `resets_at`.
@@ -60,7 +60,7 @@
 - [x] 6.1 Implement `MenuBar/StatusItemController.swift` owning the `NSStatusItem` and a `NSPopover` (or `NSPanel`) for the popover.
 - [x] 6.2 Render the status item icon with a percentage label when `latestSample[.fiveHour]` is non-nil; show a neutral icon when not yet fetched.
 - [x] 6.3 Implement color-coded icon (green ≤50, yellow 51–75, orange 76–90, red >90) based on 5-hour utilization.
-- [x] 6.4 Wire left-click to toggle the popover, right-click to show a context menu with "Open Main Window", "Toggle Usage (⌘U)", separator, "Quit ClaudeUsage".
+- [x] 6.4 Wire left-click to toggle the popover, right-click to show a context menu with "Open Main Window", "Toggle Usage (⌘U)", separator, "Quit TokenTrace".
 - [x] 6.5 Implement `MenuBar/PopoverView.swift` showing current usage for all available buckets, an "Open Main Window" button, and a "Settings…" button (which opens the main window with the Settings tab).
 - [x] 6.6 ~~Implement `Services/HotKey.swift` (Carbon-based ⌘U registration) and call it on launch only if the hotkey-enabled UserDefaults flag is true.~~ Superseded 2026-05-07: scrapped from v1 — `HotKey.swift` was implemented and then removed; popover stays reachable via menu bar status item left-click only.
 
@@ -92,8 +92,8 @@
 
 ## 10. Verification and Polish
 
-- [x] 10.1 Build via `tools/build-app.sh` and install to `/Applications/ClaudeUsage.app`. (Build done; install to `/Applications/` is a manual step — see "How to verify" in this PR.)
-- [x] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`). 2026-05-07: macOS 26 restructured status items out of the per-process `menu bar 2` AX node, so the strict Y≈4 query returns empty. Verified functionally instead — icon visible, click-to-popover works (10.3/10.4/10.6), color updates correctly; bundle ID `dev.louisdeng.claudeusage` is not poisoned.
+- [x] 10.1 Build via `tools/build-app.sh` and install to `/Applications/TokenTrace.app`. (Build done; install to `/Applications/` is a manual step — see "How to verify" in this PR.)
+- [x] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`). 2026-05-07: macOS 26 restructured status items out of the per-process `menu bar 2` AX node, so the strict Y≈4 query returns empty. Verified functionally instead — icon visible, click-to-popover works (10.3/10.4/10.6), color updates correctly; bundle ID `dev.louisdeng.tokentrace` is not poisoned.
 - [x] 10.3 Smoke test: paste valid cookie, see first sample within 10 seconds, watch icon color update.
 - [x] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
 - [x] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll). 2026-05-07: rendering with ≥3 polls confirmed; reset-marker visualization shares the same code path as chart rendering and will surface automatically once the first 5h reset event lands in the store.
@@ -104,7 +104,7 @@
 
 ## 11. Repository Publishing
 
-- [ ] 11.1 Create new GitHub repo `louisdengtw/ClaudeUsage` (start private; flip to public when ready).
+- [ ] 11.1 Create new GitHub repo `louisdengtw/TokenTrace` (start private; flip to public when ready).
 - [ ] 11.2 Push initial commit. Configure local `user.email` to the GitHub noreply address (`281707863+louisdengtw@users.noreply.github.com`) to avoid email-privacy push rejection.
 - [ ] 11.3 Move (or copy) `openspec/` from this fork into the new repo so the design history travels with the code.
 - [x] 11.4 ~~Archive the old fork repo `louisdengtw/ClaudeUsageBar` on GitHub.~~ Superseded 2026-05-07: leave the old fork untouched (no archive, no banner, no rename).

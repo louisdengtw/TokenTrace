@@ -12,14 +12,14 @@ enum ClaudeAPIError: Error, Equatable {
     case network(String)
 }
 
-struct ClaudeUsageResponse: Equatable {
+struct TokenTraceResponse: Equatable {
     let samples: [UsageSample]
     let hasWeeklySonnet: Bool
 }
 
 final class ClaudeAPI {
     private let session: URLSession
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "ClaudeAPI")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "ClaudeAPI")
 
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -72,7 +72,7 @@ final class ClaudeAPI {
         return orgId
     }
 
-    func fetchUsage(cookie: String, orgId: String, now: Date = Date()) async throws -> ClaudeUsageResponse {
+    func fetchUsage(cookie: String, orgId: String, now: Date = Date()) async throws -> TokenTraceResponse {
         guard let url = URL(string: "https://claude.ai/api/organizations/\(orgId)/usage") else {
             throw ClaudeAPIError.parseError("invalid usage URL")
         }
@@ -103,7 +103,7 @@ final class ClaudeAPI {
         return try Self.parseUsage(data: data, at: now)
     }
 
-    static func parseUsage(data: Data, at ts: Date) throws -> ClaudeUsageResponse {
+    static func parseUsage(data: Data, at ts: Date) throws -> TokenTraceResponse {
         guard let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ClaudeAPIError.parseError("not JSON; prefix=\(Self.prefix(data))")
         }
@@ -142,7 +142,7 @@ final class ClaudeAPI {
             throw ClaudeAPIError.parseError("response missing both five_hour and seven_day")
         }
 
-        return ClaudeUsageResponse(samples: samples, hasWeeklySonnet: hasWeeklySonnet)
+        return TokenTraceResponse(samples: samples, hasWeeklySonnet: hasWeeklySonnet)
     }
 
     static func extractOrgIdFromCookie(_ cookie: String) -> String? {

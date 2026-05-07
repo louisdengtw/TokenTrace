@@ -50,7 +50,7 @@ Left-clicking the status item SHALL toggle a popover anchored to the status item
 
 ### Requirement: Right-click context menu
 
-Right-clicking the status item SHALL display a context menu with at minimum: "Open Main Window", "Toggle Usage (⌘U)", a separator, and "Quit ClaudeUsage".
+Right-clicking the status item SHALL display a context menu with at minimum: "Open Main Window", "Toggle Usage (⌘U)", a separator, and "Quit TokenTrace".
 
 #### Scenario: Selecting Open Main Window
 
@@ -59,7 +59,7 @@ Right-clicking the status item SHALL display a context menu with at minimum: "Op
 
 #### Scenario: Selecting Quit
 
-- **WHEN** the user selects "Quit ClaudeUsage"
+- **WHEN** the user selects "Quit TokenTrace"
 - **THEN** the application terminates
 
 <!-- Removed 2026-05-07: Global ⌘U hotkey requirement was dropped from v1.

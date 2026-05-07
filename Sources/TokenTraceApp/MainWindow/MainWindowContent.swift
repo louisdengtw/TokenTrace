@@ -66,7 +66,7 @@ struct MainWindowContent: View {
             HStack(spacing: 8) {
                 brandChip
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("ClaudeUsage")
+                    Text("TokenTrace")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(-0.08)
                     Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro+" : "v1.0")

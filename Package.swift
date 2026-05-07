@@ -2,26 +2,26 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeUsageApp",
+    name: "TokenTraceApp",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "ClaudeUsageApp", targets: ["ClaudeUsageApp"])
+        .executable(name: "TokenTraceApp", targets: ["TokenTraceApp"])
     ],
     targets: [
         .executableTarget(
-            name: "ClaudeUsageApp",
-            path: "Sources/ClaudeUsageApp",
+            name: "TokenTraceApp",
+            path: "Sources/TokenTraceApp",
             resources: [],
             linkerSettings: [
                 .linkedLibrary("sqlite3")
             ]
         ),
         .testTarget(
-            name: "ClaudeUsageAppTests",
-            dependencies: ["ClaudeUsageApp"],
-            path: "Tests/ClaudeUsageAppTests"
+            name: "TokenTraceAppTests",
+            dependencies: ["TokenTraceApp"],
+            path: "Tests/TokenTraceAppTests"
         )
     ]
 )

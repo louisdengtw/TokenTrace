@@ -22,7 +22,7 @@ This mirrors Stats, Day One, Linear, and other window-primary apps with menu bar
 
 #### Scenario: User double-clicks the app icon
 
-- **WHEN** the user double-clicks `/Applications/ClaudeUsage.app` (or runs `open /Applications/ClaudeUsage.app`)
+- **WHEN** the user double-clicks `/Applications/TokenTrace.app` (or runs `open /Applications/TokenTrace.app`)
 - **THEN** the menu bar status item appears
 - **AND** the main window appears centered on the active screen
 - **AND** the Dock icon appears
@@ -60,7 +60,7 @@ The application SHALL run with `NSApplication.ActivationPolicy.regular` while at
 
 ### Requirement: Quit reaches termination only via the menu bar status item
 
-The application SHALL intercept all standard Quit attempts (⌘Q, the application menu's "Quit ClaudeUsage" item, any programmatic `NSApp.terminate(_:)` invocation without prior consent) and route them to "close all windows" behavior, leaving the process running with the menu bar item visible. Real process termination SHALL be reachable only by selecting "Quit ClaudeUsage" from the menu bar status item's right-click context menu, which sets an internal `userInitiatedQuit` flag before invoking terminate.
+The application SHALL intercept all standard Quit attempts (⌘Q, the application menu's "Quit TokenTrace" item, any programmatic `NSApp.terminate(_:)` invocation without prior consent) and route them to "close all windows" behavior, leaving the process running with the menu bar item visible. Real process termination SHALL be reachable only by selecting "Quit TokenTrace" from the menu bar status item's right-click context menu, which sets an internal `userInitiatedQuit` flag before invoking terminate.
 
 `applicationShouldTerminateAfterLastWindowClosed(_:)` SHALL return `false`, so closing the last window via the red button or ⌘W never auto-terminates.
 
@@ -76,12 +76,12 @@ The application SHALL intercept all standard Quit attempts (⌘Q, the applicatio
 
 #### Scenario: App menu Quit selection
 
-- **WHEN** the user selects "Quit ClaudeUsage" from the application menu (left of the macOS menu bar) while the main window is in focus
+- **WHEN** the user selects "Quit TokenTrace" from the application menu (left of the macOS menu bar) while the main window is in focus
 - **THEN** the same intercept-and-close behavior applies as for ⌘Q
 
 #### Scenario: Real Quit from the status item
 
-- **WHEN** the user right-clicks the menu bar status item and selects "Quit ClaudeUsage"
+- **WHEN** the user right-clicks the menu bar status item and selects "Quit TokenTrace"
 - **THEN** the status item's quit handler sets `userInitiatedQuit = true`
 - **AND** invokes `NSApp.terminate(_:)`
 - **AND** `applicationShouldTerminate(_:)` returns `.terminateNow`
@@ -91,12 +91,12 @@ The application SHALL intercept all standard Quit attempts (⌘Q, the applicatio
 
 When the application is in `.regular` activation policy with a main window visible, the system menu bar SHALL host the conventional six-menu structure constructed programmatically as `NSApp.mainMenu`:
 
-- **Application** (titled "ClaudeUsage"): About ClaudeUsage, Settings…, Services, Hide ClaudeUsage, Hide Others, Show All, Quit ClaudeUsage (⌘Q)
+- **Application** (titled "TokenTrace"): About TokenTrace, Settings…, Services, Hide TokenTrace, Hide Others, Show All, Quit TokenTrace (⌘Q)
 - **File**: Close (⌘W)
 - **Edit**: Undo, Redo, Cut, Copy, Paste, Select All (so the cookie paste field in Settings has standard editing affordances)
 - **View**: placeholder for v1; may be empty
 - **Window**: Minimize (⌘M), Zoom
-- **Help**: ClaudeUsage Help (placeholder for v1)
+- **Help**: TokenTrace Help (placeholder for v1)
 
 #### Scenario: Menu bar populated when window is focused
 

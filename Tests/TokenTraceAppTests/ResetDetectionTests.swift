@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageApp
+@testable import TokenTraceApp
 
 final class ResetDetectionTests: XCTestCase {
     private func sample(t: TimeInterval, resetsAt: TimeInterval) -> UsageSample {

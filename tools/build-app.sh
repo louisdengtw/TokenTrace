@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build ClaudeUsage.app from the Swift Package, copy resources, and code-sign.
+# Build TokenTrace.app from the Swift Package, copy resources, and code-sign.
 #
-# Pure build: produces build/ClaudeUsage.app and stops. Installation and
+# Pure build: produces build/TokenTrace.app and stops. Installation and
 # launch live in the Makefile (`make install`, `make run`).
 #
 # Behavior:
 #   - swift build -c release for arm64 + x86_64 (lipo'd into a universal binary)
-#   - assembles ClaudeUsage.app/Contents/{MacOS,Resources}
+#   - assembles TokenTrace.app/Contents/{MacOS,Resources}
 #   - copies Info.plist + .icns
 #   - signs with self-signed cert if available, else ad-hoc
 
@@ -15,9 +15,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-APP_NAME="ClaudeUsage"
-BUNDLE_ID="dev.louisdeng.claudeusage"
-EXECUTABLE_TARGET="ClaudeUsageApp"
+APP_NAME="TokenTrace"
+BUNDLE_ID="dev.louisdeng.tokentrace"
+EXECUTABLE_TARGET="TokenTraceApp"
 SIGN_CERT_HASH="F690B9DA81D392695487D52D35F6B37E7A362495"
 
 BUILD_DIR="${REPO_ROOT}/build"

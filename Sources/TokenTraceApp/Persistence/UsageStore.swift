@@ -11,7 +11,7 @@ enum UsageStoreError: Error, Equatable {
 
 final class UsageStore {
     private let db: OpaquePointer
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "UsageStore")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "UsageStore")
 
     private let SQLITE_TRANSIENT = unsafeBitCast(
         OpaquePointer(bitPattern: -1)!, to: sqlite3_destructor_type.self
@@ -24,9 +24,23 @@ final class UsageStore {
             appropriateFor: nil,
             create: true
         )
-        let dir = support.appendingPathComponent("dev.louisdeng.claudeusage", isDirectory: true)
+        let dir = support.appendingPathComponent("dev.louisdeng.tokentrace", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("usage.sqlite")
+        let dbPath = dir.appendingPathComponent("usage.sqlite")
+
+        // One-time migration from the pre-rename location (when the app was
+        // named ClaudeUsage). Move on first launch only; subsequent launches
+        // see the new path already populated.
+        if !FileManager.default.fileExists(atPath: dbPath.path) {
+            let legacyDir = support.appendingPathComponent("dev.louisdeng.claudeusage", isDirectory: true)
+            let legacyDB = legacyDir.appendingPathComponent("usage.sqlite")
+            if FileManager.default.fileExists(atPath: legacyDB.path) {
+                try FileManager.default.moveItem(at: legacyDB, to: dbPath)
+                // Best-effort: clean up the now-empty legacy directory.
+                try? FileManager.default.removeItem(at: legacyDir)
+            }
+        }
+        return dbPath
     }
 
     init(url: URL) throws {

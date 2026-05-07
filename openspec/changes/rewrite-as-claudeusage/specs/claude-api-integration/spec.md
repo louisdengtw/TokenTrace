@@ -66,7 +66,7 @@ The system SHALL treat any of the following as a session-expired condition: HTTP
 
 ### Requirement: Store and retrieve session cookie via Keychain
 
-The system SHALL persist the user-provided session cookie in the macOS Keychain (generic password class, service `dev.louisdeng.claudeusage.session`) and read it from there on every fetch. The cookie SHALL NOT be persisted in `UserDefaults` or any plaintext file.
+The system SHALL persist the user-provided session cookie in the macOS Keychain (generic password class, service `dev.louisdeng.tokentrace.session`) and read it from there on every fetch. The cookie SHALL NOT be persisted in `UserDefaults` or any plaintext file.
 
 #### Scenario: Saving a freshly-pasted cookie
 

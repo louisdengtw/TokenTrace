@@ -7,7 +7,7 @@ import SwiftUI
 final class StatusItemController: NSObject {
     private let usageManager: UsageManager
     private let openMainWindow: (MainTab) -> Void
-    private let log = Logger(subsystem: "dev.louisdeng.claudeusage", category: "StatusItem")
+    private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "StatusItem")
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -83,7 +83,7 @@ final class StatusItemController: NSObject {
             .target = self
 
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit ClaudeUsage", action: #selector(quitAction), keyEquivalent: "")
+        menu.addItem(withTitle: "Quit TokenTrace", action: #selector(quitAction), keyEquivalent: "")
             .target = self
 
         statusItem?.menu = menu

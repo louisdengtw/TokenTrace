@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>ClaudeUsage</string>
+    <string>TokenTrace</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.louisdeng.claudeusage</string>
+    <string>dev.louisdeng.tokentrace</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ClaudeUsage</string>
+    <string>TokenTrace</string>
     <key>CFBundleDisplayName</key>
-    <string>ClaudeUsage</string>
+    <string>TokenTrace</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -21,7 +21,7 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleIconFile</key>
-    <string>ClaudeUsage</string>
+    <string>TokenTrace</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>

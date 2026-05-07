@@ -2,7 +2,7 @@
 
 ### Requirement: SQLite-backed sample store at user Application Support path
 
-The system SHALL persist usage samples in a SQLite database at `~/Library/Application Support/dev.louisdeng.claudeusage/usage.sqlite`, creating the directory and database with the documented schema if either is missing.
+The system SHALL persist usage samples in a SQLite database at `~/Library/Application Support/dev.louisdeng.tokentrace/usage.sqlite`, creating the directory and database with the documented schema if either is missing.
 
 #### Scenario: First launch on a fresh system
 

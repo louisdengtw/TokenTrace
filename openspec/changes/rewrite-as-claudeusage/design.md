@@ -2,7 +2,7 @@
 
 The current `ClaudeUsageBar` is a single-file (1588 lines) Swift menu bar app forked from `Artzainnn/ClaudeUsageBar`. It polls `claude.ai/api/organizations/{org_id}/usage` every 5 minutes via a session cookie pasted from the browser, displays the 5-hour utilization in the menu bar, and shows a popover with three progress bars (5h / 7d / 7d-Sonnet). All settings live in a collapsible section inside the popover. No history is persisted — only the most recent sample lives in memory.
 
-The new `ClaudeUsage` app keeps the same data source but reshapes the app around a main window with a dashboard for historical analysis, while keeping the menu bar entry as a quick-glance surface.
+The new `TokenTrace` app keeps the same data source but reshapes the app around a main window with a dashboard for historical analysis, while keeping the menu bar entry as a quick-glance surface.
 
 The user is the sole consumer (personal-use app). No other contributors, no users to migrate. macOS 26 is the development target. The user has a self-signed code-signing cert (hash `F690B9DA81D392695487D52D35F6B37E7A362495`) in their login keychain.
 
@@ -38,7 +38,7 @@ The user is the sole consumer (personal-use app). No other contributors, no user
 
 ### Decision 1 — Updated 2026-05-07: window-first with menu bar accessory
 
-Reframes Decision 1's identity: ClaudeUsage's primary surface is the dashboard window, not the menu bar. The status item is an accessory — at-a-glance utilization when the window isn't visible, plus the home of out-of-band actions (popover, real Quit). The technical scaffolding (`LSUIElement = true`, dynamic activation policy) is **retained** because it serves resource hygiene (the Dock icon hides when no window is visible). What changes is the user-visible default behavior, the Quit semantics, and the absence of a standard macOS menu bar.
+Reframes Decision 1's identity: TokenTrace's primary surface is the dashboard window, not the menu bar. The status item is an accessory — at-a-glance utilization when the window isn't visible, plus the home of out-of-band actions (popover, real Quit). The technical scaffolding (`LSUIElement = true`, dynamic activation policy) is **retained** because it serves resource hygiene (the Dock icon hides when no window is visible). What changes is the user-visible default behavior, the Quit semantics, and the absence of a standard macOS menu bar.
 
 #### State transitions
 
@@ -48,13 +48,13 @@ Reframes Decision 1's identity: ClaudeUsage's primary surface is the dashboard w
 | SMAppService login launch                                     | menu bar only (`.accessory`); no window        |
 | Close window (red button / ⌘W)                                | retreat to menu bar only (`.accessory`)        |
 | ⌘Q / app-menu Quit                                            | intercepted; closes window, app stays running  |
-| Status item right-click → Quit ClaudeUsage                    | terminate process                              |
+| Status item right-click → Quit TokenTrace                    | terminate process                              |
 
 #### Quit semantics
 
 - ⌘Q and the app menu's Quit item both fire `NSApp.terminate(_:)`.
 - `applicationShouldTerminate(_:)` intercepts, closes all windows, and returns `.terminateCancel` unless an internal flag (`userInitiatedQuit`) is set.
-- Only the status item right-click "Quit ClaudeUsage" sets that flag before invoking terminate.
+- Only the status item right-click "Quit TokenTrace" sets that flag before invoking terminate.
 - `applicationShouldTerminateAfterLastWindowClosed(_:)` returns `false`, so closing the last window via the red button or ⌘W never auto-terminates.
 - Pattern follows Stats: the app teaches the user that *close ≠ quit* by leaving the menu bar item visible after window close.
 
@@ -64,7 +64,7 @@ When the window is in focus, the system menu bar hosts the conventional six-menu
 
 #### Why pivoted
 
-The original Decision 1 inherited ClaudeUsageBar's identity (a status-bar agent that happens to have a popover). ClaudeUsage's value proposition is **persistent history + dashboard analytics** — the menu bar is one of two surfaces, not the primary surface. Reframing avoids design pressure to treat the dashboard as a side feature.
+The original Decision 1 inherited ClaudeUsageBar's identity (a status-bar agent that happens to have a popover). TokenTrace's value proposition is **persistent history + dashboard analytics** — the menu bar is one of two surfaces, not the primary surface. Reframing avoids design pressure to treat the dashboard as a side feature.
 
 The pivot was identified during implementation, before v1 ship. It is captured here as an amendment rather than overwriting the original Decision 1, so the design history (what we initially thought, what we observed, why we changed) survives in the spec artifact and not just in git log.
 
@@ -93,7 +93,7 @@ CREATE INDEX idx_samples_bucket_ts ON samples(bucket, ts);
 
 Each successful poll inserts up to 3 rows (one per bucket present in the response — `seven_day_sonnet` is Pro-only and may be absent). Conflict resolution: `INSERT OR REPLACE` to handle clock skew or retries.
 
-**Storage location:** `~/Library/Application Support/dev.louisdeng.claudeusage/usage.sqlite`.
+**Storage location:** `~/Library/Application Support/dev.louisdeng.tokentrace/usage.sqlite`.
 
 **Estimated growth:** 5-min poll × 3 buckets × 365 days ≈ 315,000 rows/year. At ~40 bytes/row uncompressed plus indexes, ≈ 15-20 MB/year worst case. Acceptable indefinitely; no retention policy needed in v1.
 
@@ -127,8 +127,8 @@ Each chart is a `Chart` view containing:
 
 Replace `app/build.sh` with a Swift Package (`Package.swift`) that produces an executable target. Wrap it in an `.app` bundle via a small shell helper (`tools/build-app.sh`) that:
 1. `swift build -c release --arch arm64 --arch x86_64` for a universal binary.
-2. Constructs `ClaudeUsage.app/Contents/{MacOS,Resources}` and copies `Info.plist` + `.icns`.
-3. Runs `codesign --force --deep --sign F690B9DA81D392695487D52D35F6B37E7A362495 ClaudeUsage.app`.
+2. Constructs `TokenTrace.app/Contents/{MacOS,Resources}` and copies `Info.plist` + `.icns`.
+3. Runs `codesign --force --deep --sign F690B9DA81D392695487D52D35F6B37E7A362495 TokenTrace.app`.
 4. Optionally `open` the result (mirroring the old `build.sh` behavior).
 
 **Alternatives considered:**
@@ -140,10 +140,10 @@ Replace `app/build.sh` with a Swift Package (`Package.swift`) that produces an e
 ### Decision 5 — Module / source layout
 
 ```
-ClaudeUsage/
+TokenTrace/
 ├── Package.swift
 ├── Sources/
-│   └── ClaudeUsageApp/
+│   └── TokenTraceApp/
 │       ├── App.swift                          ← @main, AppDelegate, activation policy
 │       ├── MenuBar/
 │       │   ├── StatusItemController.swift     ← NSStatusItem + icon updates
@@ -165,10 +165,10 @@ ClaudeUsage/
 │           └── Bucket.swift                   ← enum: fiveHour, sevenDay, sevenDaySonnet
 ├── Resources/
 │   ├── Info.plist
-│   ├── ClaudeUsage.icns
+│   ├── TokenTrace.icns
 │   └── Assets.xcassets
 ├── Tests/
-│   └── ClaudeUsageAppTests/
+│   └── TokenTraceAppTests/
 │       ├── UsageStoreTests.swift
 │       └── ResetDetectionTests.swift
 ├── tools/
@@ -192,7 +192,7 @@ It does NOT own UI state like "is settings panel showing." That stays in views.
 
 ### Decision 7 — Bundle ID and signing
 
-- New bundle ID: `dev.louisdeng.claudeusage` (avoids macOS 26's blacklist on `com.claude.usagebar`; documented in `TROUBLESHOOTING.md` of the old repo).
+- New bundle ID: `dev.louisdeng.tokentrace` (avoids macOS 26's blacklist on `com.claude.usagebar`; documented in `TROUBLESHOOTING.md` of the old repo).
 - Code signing: ad-hoc fallback for clean builds, but the build script prefers the user's local self-signed cert (hash `F690B9DA81D392695487D52D35F6B37E7A362495`) if present in the keychain.
 - No notarization in v1.
 
@@ -209,8 +209,8 @@ It does NOT own UI state like "is settings panel showing." That stays in views.
 
 ## Migration Plan
 
-1. Develop the new app to working v1 in `~/worksapce/ClaudeUsage/` (new directory, new repo).
-2. Install both apps in parallel: keep `dev.louisdeng.claudeusagebar` (old fork) running while the new `dev.louisdeng.claudeusage` is built and tested.
+1. Develop the new app to working v1 in `~/worksapce/TokenTrace/` (new directory, new repo).
+2. Install both apps in parallel: keep `dev.louisdeng.claudeusagebar` (old fork) running while the new `dev.louisdeng.tokentrace` is built and tested.
 3. When confident, copy the session cookie from the old Keychain entry into the new app (one-time manual step via the new Settings UI).
 4. Quit the old app; remove from `/Applications/`. Optionally clean up old Keychain entries via Keychain Access.
 5. Archive the old fork repo on GitHub.

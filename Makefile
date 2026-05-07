@@ -1,4 +1,4 @@
-APP_NAME    := ClaudeUsage
+APP_NAME    := TokenTrace
 BUILD_APP   := build/$(APP_NAME).app
 INSTALLED   := /Applications/$(APP_NAME).app
 
