@@ -93,7 +93,7 @@
 ## 10. Verification and Polish
 
 - [x] 10.1 Build via `tools/build-app.sh` and install to `/Applications/ClaudeUsage.app`. (Build done; install to `/Applications/` is a manual step — see "How to verify" in this PR.)
-- [ ] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`).
+- [x] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`). 2026-05-07: macOS 26 restructured status items out of the per-process `menu bar 2` AX node, so the strict Y≈4 query returns empty. Verified functionally instead — icon visible, click-to-popover works (10.3/10.4/10.6), color updates correctly; bundle ID `dev.louisdeng.claudeusage` is not poisoned.
 - [x] 10.3 Smoke test: paste valid cookie, see first sample within 10 seconds, watch icon color update.
 - [x] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
 - [x] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll). 2026-05-07: rendering with ≥3 polls confirmed; reset-marker visualization shares the same code path as chart rendering and will surface automatically once the first 5h reset event lands in the store.
