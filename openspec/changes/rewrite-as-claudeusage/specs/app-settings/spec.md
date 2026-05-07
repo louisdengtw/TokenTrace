@@ -60,21 +60,10 @@ The Settings tab SHALL provide a master "Enable notifications" toggle. When enab
 - **WHEN** the user toggles notifications off
 - **THEN** no notifications are delivered regardless of threshold crossings
 
-### Requirement: Hotkey enable/disable
+<!-- Removed 2026-05-07: Hotkey enable/disable requirement was dropped from v1
+     when the global ⌘U hotkey itself was scrapped.
+     See tasks.md task 8.4 for the historical scope. -->
 
-The Settings tab SHALL provide a toggle for the ⌘U global hotkey. The system SHALL register the hotkey only when the toggle is on.
-
-#### Scenario: Disabling the hotkey
-
-- **WHEN** the user toggles the hotkey off
-- **THEN** the global hotkey is deregistered immediately
-- **AND** the app does not prompt for Accessibility permission
-
-#### Scenario: Enabling the hotkey
-
-- **WHEN** the user toggles the hotkey on
-- **THEN** the global hotkey is registered
-- **AND** if Accessibility permission is not yet granted, the user is prompted to grant it
 
 ### Requirement: Open at login
 

@@ -2,16 +2,11 @@ import OSLog
 import ServiceManagement
 import SwiftUI
 
-extension Notification.Name {
-    static let hotkeySettingChanged = Notification.Name("dev.louisdeng.claudeusage.hotkeySettingChanged")
-}
-
 struct SettingsView: View {
     @ObservedObject var usageManager: UsageManager
 
     @State private var pastedCookie = ""
     @State private var notificationsOn = AppSettings.notificationsEnabled
-    @State private var hotkeyOn = AppSettings.hotkeyEnabled
     @State private var openAtLoginOn = AppSettings.openAtLoginEnabled
     @State private var openAtLoginErrorMessage: String?
 
@@ -21,7 +16,6 @@ struct SettingsView: View {
         Form {
             cookieSection
             notificationsSection
-            hotkeySection
             loginSection
         }
         .formStyle(.grouped)
@@ -93,22 +87,6 @@ struct SettingsView: View {
                     }
                 }
             Text("Fires once each at 25%, 50%, 75%, and 90% of the 5-hour session.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - Hotkey
-
-    @ViewBuilder
-    private var hotkeySection: some View {
-        Section("Hotkey") {
-            Toggle("Toggle popover with ⌘U globally", isOn: $hotkeyOn)
-                .onChange(of: hotkeyOn) { newValue in
-                    AppSettings.hotkeyEnabled = newValue
-                    NotificationCenter.default.post(name: .hotkeySettingChanged, object: nil)
-                }
-            Text("Requires Accessibility permission. macOS will prompt the first time you enable this.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -62,7 +62,7 @@
 - [x] 6.3 Implement color-coded icon (green ≤50, yellow 51–75, orange 76–90, red >90) based on 5-hour utilization.
 - [x] 6.4 Wire left-click to toggle the popover, right-click to show a context menu with "Open Main Window", "Toggle Usage (⌘U)", separator, "Quit ClaudeUsage".
 - [x] 6.5 Implement `MenuBar/PopoverView.swift` showing current usage for all available buckets, an "Open Main Window" button, and a "Settings…" button (which opens the main window with the Settings tab).
-- [x] 6.6 Implement `Services/HotKey.swift` (Carbon-based ⌘U registration) and call it on launch only if the hotkey-enabled UserDefaults flag is true.
+- [x] 6.6 ~~Implement `Services/HotKey.swift` (Carbon-based ⌘U registration) and call it on launch only if the hotkey-enabled UserDefaults flag is true.~~ Superseded 2026-05-07: scrapped from v1 — `HotKey.swift` was implemented and then removed; popover stays reachable via menu bar status item left-click only.
 
 ## 7. Main Window
 
@@ -80,7 +80,7 @@
 - [x] 8.1 Implement `MainWindow/SettingsView.swift` as a SwiftUI `Form` with sections: Cookie, Notifications, Hotkey, Open at login.
 - [x] 8.2 Cookie section: redacted preview of stored cookie, paste-and-save text field, "Sign out" button. Saving triggers an immediate fetch via `UsageManager`.
 - [x] 8.3 Notifications section: master toggle. (Threshold list 25/50/75/90 is fixed in v1; not user-configurable.)
-- [x] 8.4 Hotkey section: toggle that registers/deregisters the global ⌘U hotkey via `HotKey.swift`. Show Accessibility prompt only when toggling on without permission.
+- [x] 8.4 ~~Hotkey section: toggle that registers/deregisters the global ⌘U hotkey via `HotKey.swift`. Show Accessibility prompt only when toggling on without permission.~~ Superseded 2026-05-07: dropped along with task 6.6.
 - [x] 8.5 Open at login section: toggle backed by `SMAppService.mainApp` register/unregister.
 - [x] 8.6 All toggles persist to `UserDefaults` and are restored on next launch.
 
@@ -98,7 +98,7 @@
 - [ ] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
 - [ ] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll).
 - [ ] 10.6 Verify hover tooltips show correct timestamp and value.
-- [ ] 10.7 Verify ⌘U hotkey works globally after Accessibility grant.
+- [x] 10.7 ~~Verify ⌘U hotkey works globally after Accessibility grant.~~ Superseded 2026-05-07: hotkey feature removed.
 - [ ] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
 - [ ] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users).
 

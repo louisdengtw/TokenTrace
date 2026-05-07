@@ -62,24 +62,7 @@ Right-clicking the status item SHALL display a context menu with at minimum: "Op
 - **WHEN** the user selects "Quit ClaudeUsage"
 - **THEN** the application terminates
 
-### Requirement: Global ⌘U hotkey toggles popover
+<!-- Removed 2026-05-07: Global ⌘U hotkey requirement was dropped from v1.
+     The popover stays reachable via the menu bar status item left-click.
+     See tasks.md task 6.6 for the historical scope. -->
 
-The application SHALL register a global Carbon hotkey for ⌘U that toggles the popover from anywhere. This requires Accessibility permission, which the app SHALL request only when the hotkey is enabled in settings.
-
-#### Scenario: Hotkey enabled and Accessibility granted
-
-- **WHEN** the user presses ⌘U from any other application
-- **THEN** the popover toggles open or closed
-- **AND** the active app is not switched
-
-#### Scenario: Hotkey enabled but Accessibility not granted
-
-- **WHEN** the hotkey is enabled in settings but Accessibility permission is not granted
-- **THEN** the app prompts the user to grant Accessibility permission via System Settings
-- **AND** until granted, ⌘U does nothing globally (still works only when ClaudeUsage is the active app)
-
-#### Scenario: Hotkey disabled
-
-- **WHEN** the user disables the hotkey in settings
-- **THEN** the app deregisters the global hotkey
-- **AND** does not request Accessibility permission

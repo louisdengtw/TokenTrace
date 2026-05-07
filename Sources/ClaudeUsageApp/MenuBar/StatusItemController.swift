@@ -82,17 +82,8 @@ final class StatusItemController: NSObject {
         menu.addItem(withTitle: "Open Main Window", action: #selector(openMainWindowAction), keyEquivalent: "")
             .target = self
 
-        let toggleItem = NSMenuItem(
-            title: "Toggle Usage",
-            action: #selector(toggleUsageAction),
-            keyEquivalent: "u"
-        )
-        toggleItem.keyEquivalentModifierMask = [.command]
-        toggleItem.target = self
-        menu.addItem(toggleItem)
-
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit ClaudeUsage", action: #selector(quitAction), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit ClaudeUsage", action: #selector(quitAction), keyEquivalent: "")
             .target = self
 
         statusItem?.menu = menu
@@ -102,10 +93,6 @@ final class StatusItemController: NSObject {
 
     @objc private func openMainWindowAction() {
         openMainWindow(.dashboard)
-    }
-
-    @objc private func toggleUsageAction() {
-        togglePopover()
     }
 
     @objc private func quitAction() {

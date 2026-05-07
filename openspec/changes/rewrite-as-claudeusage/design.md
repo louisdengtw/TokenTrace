@@ -151,12 +151,11 @@ ClaudeUsage/
 │       ├── MainWindow/
 │       │   ├── MainWindowController.swift     ← window lifecycle
 │       │   ├── DashboardView.swift            ← the two charts + range selector
-│       │   ├── SettingsView.swift             ← cookie / notif / hotkey / login
+│       │   ├── SettingsView.swift             ← cookie / notif / login
 │       │   └── MenuBarPreviewView.swift       ← shows current status item state
 │       ├── Services/
 │       │   ├── ClaudeAPI.swift                ← bootstrap + usage HTTP
 │       │   ├── CookieKeychain.swift           ← (salvaged, lightly refactored)
-│       │   ├── HotKey.swift                   ← Carbon hotkey wrapper
 │       │   └── UsageManager.swift             ← orchestrates poll → store → publish
 │       ├── Persistence/
 │       │   ├── UsageStore.swift               ← SQLite open/insert/query

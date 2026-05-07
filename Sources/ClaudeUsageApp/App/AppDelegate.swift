@@ -48,19 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         manager.start()
 
-        // Best-effort: register hotkey if the user has previously enabled it.
-        applyHotkeySetting()
-
-        NotificationCenter.default.addObserver(
-            forName: .hotkeySettingChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.applyHotkeySetting()
-            }
-        }
-
         // Stats / Bartender / Ice convention:
         //   - user-initiated launch (Finder double-click, `open`, Spotlight) → show main window
         //   - SMAppService login-item auto-launch                             → menu bar only
@@ -81,16 +68,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         usageManager?.stop()
-        HotKey.shared.unregister()
-    }
-
-    private func applyHotkeySetting() {
-        if AppSettings.hotkeyEnabled {
-            HotKey.shared.register { [weak self] in
-                self?.statusItemController.togglePopover()
-            }
-        } else {
-            HotKey.shared.unregister()
-        }
     }
 }
