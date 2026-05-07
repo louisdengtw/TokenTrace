@@ -28,7 +28,7 @@ struct PopoverView: View {
                 .tracking(-0.06)
 
             if usageManager.hasWeeklySonnet {
-                Text("PRO")
+                Text("PRO+")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.4)
                     .foregroundStyle(scheme == .dark

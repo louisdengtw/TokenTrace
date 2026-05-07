@@ -69,7 +69,7 @@ struct MainWindowContent: View {
                     Text("ClaudeUsage")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(-0.08)
-                    Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro" : "v1.0")
+                    Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro+" : "v1.0")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
