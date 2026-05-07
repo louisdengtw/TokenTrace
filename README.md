@@ -10,11 +10,15 @@ Native macOS menu bar + main window app that polls `claude.ai` for personal usag
 ## Build
 
 ```sh
-./tools/build-app.sh
-open build/ClaudeUsage.app
+make            # show targets
+make build      # universal .app at build/ClaudeUsage.app
+make install    # also copy to /Applications/
+make run        # also pkill + relaunch
+make test       # swift test
+make clean
 ```
 
-The build script produces a universal binary, assembles `ClaudeUsage.app/Contents/{MacOS,Resources}`, and signs with the user's local self-signed cert (falling back to ad-hoc).
+`make build` shells out to `tools/build-app.sh`, which produces a universal binary, assembles `ClaudeUsage.app/Contents/{MacOS,Resources}`, and signs with the user's local self-signed cert (falling back to ad-hoc).
 
 ## Auth
 

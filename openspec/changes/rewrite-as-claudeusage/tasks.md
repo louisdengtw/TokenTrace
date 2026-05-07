@@ -12,6 +12,7 @@
 - [x] 1.10 Add `LICENSE-CLAUDEUSAGEBAR` containing the upstream MIT license text verbatim (preserving its `Copyright (c) 2026 ClaudeUsageBar` line) plus a short header listing which source files include derived portions.
 - [x] 1.11 Add a placeholder `README.md` with a "Credits" section that names `Artzainnn/ClaudeUsageBar` and explains the salvage scope (API integration only).
 - [x] 1.12 Add file-level notice headers to each Swift file that includes derived code (initially `Sources/ClaudeUsageApp/Services/ClaudeAPI.swift` and `Sources/ClaudeUsageApp/Services/CookieKeychain.swift`):
+- [x] 1.13 Add `Makefile` at repo root with `build / install / run / test / clean / help` targets; `tools/build-app.sh` becomes pure-build (drop the `--open` flag, Makefile's `run` target replaces it).
   ```swift
   // Portions of this file are derived from ClaudeUsageBar (MIT licensed).
   // Source: https://github.com/Artzainnn/ClaudeUsageBar
@@ -99,7 +100,6 @@
 - [ ] 10.7 Verify ⌘U hotkey works globally after Accessibility grant.
 - [ ] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
 - [ ] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users).
-- [ ] 10.10 Quit old `ClaudeUsageBar.app`; remove from `/Applications/`. Optionally delete old Keychain entry.
 
 ## 11. Repository Publishing
 

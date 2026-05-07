@@ -1,12 +1,14 @@
 #!/bin/bash
 # Build ClaudeUsage.app from the Swift Package, copy resources, and code-sign.
 #
+# Pure build: produces build/ClaudeUsage.app and stops. Installation and
+# launch live in the Makefile (`make install`, `make run`).
+#
 # Behavior:
 #   - swift build -c release for arm64 + x86_64 (lipo'd into a universal binary)
 #   - assembles ClaudeUsage.app/Contents/{MacOS,Resources}
 #   - copies Info.plist + .icns
 #   - signs with self-signed cert if available, else ad-hoc
-#   - pass --open to launch the app afterward (kills any prior instance first)
 
 set -euo pipefail
 
@@ -23,13 +25,6 @@ APP_PATH="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${APP_PATH}/Contents"
 MACOS_DIR="${CONTENTS}/MacOS"
 RES_DIR="${CONTENTS}/Resources"
-
-OPEN_AFTER=0
-for arg in "$@"; do
-    case "${arg}" in
-        --open) OPEN_AFTER=1 ;;
-    esac
-done
 
 echo "==> Building ${APP_NAME} (universal arm64 + x86_64)…"
 
@@ -80,10 +75,3 @@ codesign --verify --deep --strict "${APP_PATH}" || {
 }
 
 echo "==> Done: ${APP_PATH}"
-
-if [ "${OPEN_AFTER}" -eq 1 ]; then
-    echo "==> Killing any running ${APP_NAME} (open(1) won't replace a live instance)"
-    pkill -x "${APP_NAME}" 2>/dev/null || true
-    sleep 0.3
-    open "${APP_PATH}"
-fi
