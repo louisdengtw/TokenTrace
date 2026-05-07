@@ -120,3 +120,13 @@ Reframes the app from "menu bar primary" to "window primary with menu bar access
 - [ ] 12.5 Implement `applicationShouldTerminateAfterLastWindowClosed(_:)` to return `false` so that closing the last window via X / ⌘W does not auto-terminate.
 - [ ] 12.6 Update `StatusItemController.quitAction` to set `userInitiatedQuit = true` on the AppDelegate before invoking `NSApp.terminate(_:)`. (May require exposing the flag via a small protocol or weak reference.)
 - [ ] 12.7 Verify behaviour after implementation: ⌘Q with window focused → window closes, process stays; app menu Quit → same; status item right-click Quit → process terminates; window close (X / ⌘W) → menu bar only; login launch → menu bar only; subsequent `open` → re-opens window.
+
+## 13. UI Design Pass (Claude Design hand-off, 2026-05-07)
+
+Visuals translated from `claude.ai/design` mockups (`Popover + MenuBar.html` + `Dashboard.html`). The functional surface (data flow, persistence, polling) was already in place; this group is purely the look-and-feel layer landing across status item, popover, sidebar, and dashboard.
+
+- [x] 13.1 Stats-style menu bar icon: 3 stacked columns (5H / 7D / SON), per-column threshold colors, label 8pt + value 10pt SF Pro, rendered via `ImageRenderer` on every state / appearance change. New file `MenuBar/StatsIconView.swift`; `StatusItemController` swapped over from SF Symbol + tint approach.
+- [x] 13.2 Popover redesign (D + B blend): header with Pro chip + sync indicator (green dot + "Xs ago"), per-bucket cards with sparkline (last 12 samples from store), 28-segment tick bar, threshold-tinted percentage, "resets in Xh Ym" countdown; `.borderedProminent` + `.bordered` button pair in footer. 320 × 280 inside the standard `NSPopover`.
+- [x] 13.3 Main window restructure: replace `TabView` with `NavigationSplitView`. Sidebar contains brand chip (Anthropic-orange gradient C), title + version/Pro line, three nav rows (Dashboard / Menu Bar / Settings) with selection highlight, and sync footer (dot + relative time).
+- [x] 13.4 Dashboard redesign: top toolbar (title + trend description + segmented range selector) above two cards, each card has SwiftUI Charts area chart with linear-gradient fill (0.30 → 0.02), crisp 1.6pt monotone line, dashed reset `RuleMark`s, hover crosshair + dot pair (state-driven via `chartXSelection` on macOS 14+, falls back gracefully on 13), big mono readout in card header. `UsageColor` helper now shared across status item, popover, dashboard.
+- [x] 13.5 Threshold color thresholds aligned with mockups: ≥90 red, ≥75 orange, ≥50 yellow, else green. Replaces the prior 50/75/90 banding with the design's 50/75/90 cuts (semantically the same, hex values harmonized with the design palette).

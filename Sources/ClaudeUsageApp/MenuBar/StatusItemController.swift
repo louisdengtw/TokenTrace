@@ -27,24 +27,28 @@ final class StatusItemController: NSObject {
             button.target = self
             button.action = #selector(handleClick(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.imagePosition = .imageLeft
+            button.imagePosition = .imageOnly
         }
 
         installPopover()
-        applyState(latestFiveHour: nil, hasFetched: false, sessionExpired: usageManager.sessionExpired)
+        renderIcon()
 
-        // Re-render whenever the manager publishes new state.
         usageManager.$latestSample
             .combineLatest(usageManager.$hasFetchedData, usageManager.$sessionExpired)
             .receive(on: RunLoop.main)
-            .sink { [weak self] sample, hasFetched, sessionExpired in
-                self?.applyState(
-                    latestFiveHour: sample[.fiveHour],
-                    hasFetched: hasFetched,
-                    sessionExpired: sessionExpired
-                )
+            .sink { [weak self] _, _, _ in
+                self?.renderIcon()
             }
             .store(in: &cancellables)
+
+        // System appearance changes (light <-> dark) should re-render the icon
+        // since we bake the colors into the rendered NSImage.
+        DistributedNotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appearanceChanged),
+            name: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil
+        )
     }
 
     func togglePopover() {
@@ -54,7 +58,6 @@ final class StatusItemController: NSObject {
             popover.performClose(nil)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            // Activate so popover keyboard input works.
             if #available(macOS 14.0, *) {
                 NSApp.activate()
             } else {
@@ -109,6 +112,12 @@ final class StatusItemController: NSObject {
         NSApp.terminate(nil)
     }
 
+    @objc private func appearanceChanged() {
+        Task { @MainActor in
+            renderIcon()
+        }
+    }
+
     // MARK: - Popover
 
     private func installPopover() {
@@ -127,38 +136,34 @@ final class StatusItemController: NSObject {
         self.popover = popover
     }
 
-    // MARK: - Rendering
+    // MARK: - Icon rendering
 
-    private func applyState(latestFiveHour: UsageSample?, hasFetched: Bool, sessionExpired: Bool) {
+    private func renderIcon() {
         guard let button = statusItem?.button else { return }
 
-        let icon = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: "ClaudeUsage")
-        icon?.isTemplate = false
-        button.image = icon
+        let scheme: ColorScheme = isDarkAppearance(for: button) ? .dark : .light
+        let view = StatsIconView(
+            fiveHour: usageManager.latestSample[.fiveHour]?.util,
+            sevenDay: usageManager.latestSample[.sevenDay]?.util,
+            sevenDaySonnet: usageManager.hasWeeklySonnet
+                ? usageManager.latestSample[.sevenDaySonnet]?.util
+                : nil,
+            scheme: scheme
+        )
 
-        if sessionExpired {
-            button.title = "  ⚠"
-            button.contentTintColor = .systemOrange
-            return
-        }
-
-        guard let sample = latestFiveHour, hasFetched else {
+        let renderer = ImageRenderer(content: view.fixedSize())
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        if let image = renderer.nsImage {
+            // Not a template image — we render our own threshold colors.
+            image.isTemplate = false
+            button.image = image
             button.title = ""
-            button.contentTintColor = .secondaryLabelColor
-            return
         }
-
-        let pct = Int(sample.util.rounded())
-        button.title = "  \(pct)%"
-        button.contentTintColor = colorForUtilization(pct)
     }
 
-    private func colorForUtilization(_ pct: Int) -> NSColor {
-        switch pct {
-        case ...50:    return .systemGreen
-        case 51...75:  return .systemYellow
-        case 76...90:  return .systemOrange
-        default:       return .systemRed
-        }
+    private func isDarkAppearance(for view: NSView) -> Bool {
+        let appearance = view.effectiveAppearance
+        let match = appearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        return match == .darkAqua || match == .vibrantDark
     }
 }
