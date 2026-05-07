@@ -100,7 +100,7 @@
 - [ ] 10.6 Verify hover tooltips show correct timestamp and value.
 - [x] 10.7 ~~Verify ⌘U hotkey works globally after Accessibility grant.~~ Superseded 2026-05-07: hotkey feature removed.
 - [ ] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
-- [ ] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users).
+- [x] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users). 2026-05-07: confirmed 3/3/3 across five_hour / seven_day / seven_day_sonnet (Pro account).
 
 ## 11. Repository Publishing
 
