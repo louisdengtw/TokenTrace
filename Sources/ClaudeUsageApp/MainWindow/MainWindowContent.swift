@@ -4,20 +4,28 @@ struct MainWindowContent: View {
     @ObservedObject var usageManager: UsageManager
     @ObservedObject var selection: MainTabSelection
     @Environment(\.colorScheme) private var scheme
+    @State private var sidebarCollapsed: Bool = false
+
+    private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
 
     var body: some View {
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 240)
+                .navigationSplitViewColumnWidth(
+                    min: sidebarWidth,
+                    ideal: sidebarWidth,
+                    max: sidebarCollapsed ? 56 : 240
+                )
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(scheme == .dark
-                            ? Color(red: 0.118, green: 0.118, blue: 0.125)   // #1e1e20
-                            : Color(red: 0.965, green: 0.965, blue: 0.969))   // #f6f6f7
+                            ? Color(red: 0.118, green: 0.118, blue: 0.125)
+                            : Color(red: 0.965, green: 0.965, blue: 0.969))
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, minHeight: 540)
+        .modifier(SuppressSidebarToggleIfAvailable())
     }
 
     // MARK: - Sidebar
@@ -26,8 +34,7 @@ struct MainWindowContent: View {
         VStack(alignment: .leading, spacing: 0) {
             brandHeader
             Divider().opacity(0.5)
-            navList
-                .padding(.vertical, 6)
+            navList.padding(.vertical, 6)
             Spacer(minLength: 0)
             Divider().opacity(0.5)
             sidebarFooter
@@ -37,37 +44,69 @@ struct MainWindowContent: View {
                     : Color(red: 0.926, green: 0.926, blue: 0.933).opacity(0.6))
     }
 
+    @ViewBuilder
     private var brandHeader: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(LinearGradient(
-                        colors: [
-                            Color(red: 0.851, green: 0.467, blue: 0.341),  // #D97757
-                            Color(red: 0.788, green: 0.373, blue: 0.247)   // #C95F3F
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing))
-                    .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-                Text("C")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
+        if sidebarCollapsed {
+            VStack(spacing: 8) {
+                brandChip
+                toggleButton
             }
-            .frame(width: 22, height: 22)
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text("ClaudeUsage")
-                    .font(.system(size: 13, weight: .semibold))
-                    .tracking(-0.08)
-                Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro" : "v1.0")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+        } else {
+            HStack(spacing: 8) {
+                brandChip
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("ClaudeUsage")
+                        .font(.system(size: 13, weight: .semibold))
+                        .tracking(-0.08)
+                    Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro" : "v1.0")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                toggleButton
             }
-            Spacer()
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+    }
+
+    private var brandChip: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(LinearGradient(
+                    colors: [
+                        Color(red: 0.851, green: 0.467, blue: 0.341),  // #D97757
+                        Color(red: 0.788, green: 0.373, blue: 0.247)   // #C95F3F
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing))
+                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+            Text("C")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 22, height: 22)
+    }
+
+    private var toggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                sidebarCollapsed.toggle()
+            }
+        } label: {
+            Image(systemName: sidebarCollapsed ? "sidebar.right" : "sidebar.left")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
     }
 
     private var navList: some View {
@@ -90,13 +129,16 @@ struct MainWindowContent: View {
                     .font(.system(size: 12, weight: selected ? .semibold : .regular))
                     .frame(width: 14, height: 14)
                     .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.85))
-                Text(label)
-                    .font(.system(size: 13, weight: selected ? .medium : .regular))
-                    .tracking(-0.06)
-                Spacer()
+                if !sidebarCollapsed {
+                    Text(label)
+                        .font(.system(size: 13, weight: selected ? .medium : .regular))
+                        .tracking(-0.06)
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, sidebarCollapsed ? 0 : 8)
             .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: sidebarCollapsed ? .center : .leading)
             .background(
                 RoundedRectangle(cornerRadius: 5)
                     .fill(selected
@@ -106,6 +148,7 @@ struct MainWindowContent: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(sidebarCollapsed ? label : "")
     }
 
     private var sidebarFooter: some View {
@@ -113,21 +156,25 @@ struct MainWindowContent: View {
             Circle()
                 .fill(syncDotColor)
                 .frame(width: 6, height: 6)
-            Text(syncText)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
+            if !sidebarCollapsed {
+                Text(syncText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
         }
-        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: sidebarCollapsed ? .center : .leading)
+        .padding(.horizontal, sidebarCollapsed ? 8 : 14)
         .padding(.vertical, 10)
+        .help(sidebarCollapsed ? syncText : "")
     }
 
     private var syncDotColor: Color {
         if usageManager.sessionExpired { return .orange }
         if usageManager.errorMessage != nil { return .red }
         if usageManager.hasFetchedData {
-            return Color(red: 0.204, green: 0.780, blue: 0.349)  // #34C759
+            return Color(red: 0.204, green: 0.780, blue: 0.349)
         }
         return .secondary
     }
@@ -157,6 +204,18 @@ struct MainWindowContent: View {
             MenuBarPreviewView(usageManager: usageManager)
         case .settings:
             SettingsView(usageManager: usageManager)
+        }
+    }
+}
+
+/// `toolbar(removing: .sidebarToggle)` ships in macOS 14. On macOS 13 the
+/// system toggle stays where AppKit puts it; one less customization.
+private struct SuppressSidebarToggleIfAvailable: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content.toolbar(removing: .sidebarToggle)
+        } else {
+            content
         }
     }
 }
