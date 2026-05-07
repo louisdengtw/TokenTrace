@@ -83,21 +83,13 @@ struct MainWindowContent: View {
     }
 
     private var brandChip: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 5)
-                .fill(LinearGradient(
-                    colors: [
-                        Color(red: 0.851, green: 0.467, blue: 0.341),  // #D97757
-                        Color(red: 0.788, green: 0.373, blue: 0.247)   // #C95F3F
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing))
-                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-            Text("C")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 22, height: 22)
+        // The brand chip is the app's own icon (Resources/TokenTrace.icns)
+        // rendered at 22pt. Stays in sync with whatever icon ships in the
+        // bundle, so future icon updates don't need a code change here.
+        Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 22, height: 22)
     }
 
     private var toggleButton: some View {
