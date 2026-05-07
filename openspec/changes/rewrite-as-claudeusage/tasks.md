@@ -99,7 +99,7 @@
 - [x] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll). 2026-05-07: rendering with ≥3 polls confirmed; reset-marker visualization shares the same code path as chart rendering and will surface automatically once the first 5h reset event lands in the store.
 - [x] 10.6 Verify hover tooltips show correct timestamp and value.
 - [x] 10.7 ~~Verify ⌘U hotkey works globally after Accessibility grant.~~ Superseded 2026-05-07: hotkey feature removed.
-- [ ] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
+- [x] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
 - [x] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users). 2026-05-07: confirmed 3/3/3 across five_hour / seven_day / seven_day_sonnet (Pro account).
 
 ## 11. Repository Publishing
