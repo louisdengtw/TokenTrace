@@ -1,7 +1,3 @@
-// Portions of this file are derived from ClaudeUsageBar (MIT licensed).
-// Source: https://github.com/Artzainnn/ClaudeUsageBar
-// Copyright (c) 2026 ClaudeUsageBar — see LICENSE-CLAUDEUSAGEBAR for full terms.
-
 import Foundation
 import OSLog
 import Security

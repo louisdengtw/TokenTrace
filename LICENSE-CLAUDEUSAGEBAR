@@ -1,12 +1,11 @@
 The following license applies to portions of this software derived from
 ClaudeUsageBar (https://github.com/Artzainnn/ClaudeUsageBar). Specifically,
-portions of these files are derived from that project:
+portions of this file are derived from that project:
 
   Sources/ClaudeUsageApp/Services/ClaudeAPI.swift
-  Sources/ClaudeUsageApp/Services/CookieKeychain.swift
 
-Each derived file additionally carries an in-source notice. The original
-license text from the upstream project is reproduced below verbatim.
+That file additionally carries an in-source notice. The original license
+text from the upstream project is reproduced below verbatim.
 
 ================================================================================
 
