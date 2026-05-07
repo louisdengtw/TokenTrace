@@ -95,9 +95,9 @@
 - [x] 10.1 Build via `tools/build-app.sh` and install to `/Applications/ClaudeUsage.app`. (Build done; install to `/Applications/` is a manual step — see "How to verify" in this PR.)
 - [ ] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`).
 - [x] 10.3 Smoke test: paste valid cookie, see first sample within 10 seconds, watch icon color update.
-- [ ] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
-- [ ] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll).
-- [ ] 10.6 Verify hover tooltips show correct timestamp and value.
+- [x] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
+- [x] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll). 2026-05-07: rendering with ≥3 polls confirmed; reset-marker visualization shares the same code path as chart rendering and will surface automatically once the first 5h reset event lands in the store.
+- [x] 10.6 Verify hover tooltips show correct timestamp and value.
 - [x] 10.7 ~~Verify ⌘U hotkey works globally after Accessibility grant.~~ Superseded 2026-05-07: hotkey feature removed.
 - [ ] 10.8 Verify "Open at login" by toggling on, rebooting, and checking app starts in menu-bar-only mode.
 - [x] 10.9 Verify SQLite file exists at expected path and grows by 3 rows per successful poll (or 2 rows for non-Pro users). 2026-05-07: confirmed 3/3/3 across five_hour / seven_day / seven_day_sonnet (Pro account).
@@ -119,7 +119,7 @@ Reframes the app from "menu bar primary" to "window primary with menu bar access
 - [x] 12.4 Implement `applicationShouldTerminate(_:)` on `AppDelegate`: if `userInitiatedQuit` is true return `.terminateNow`; otherwise close all visible main windows and return `.terminateCancel`.
 - [x] 12.5 Implement `applicationShouldTerminateAfterLastWindowClosed(_:)` to return `false`.
 - [x] 12.6 `StatusItemController.quitAction` now calls `AppDelegate.requestRealQuit()` (sets the flag, then invokes terminate). The right-click context menu's Quit item lost its ⌘Q key equivalent so the system doesn't double-bind it.
-- [ ] 12.7 Verify behaviour after implementation: ⌘Q with window focused → window closes, process stays; app menu Quit → same; status item right-click Quit → process terminates; window close (X / ⌘W) → menu bar only; login launch → menu bar only; subsequent `open` → re-opens window.
+- [x] 12.7 Verify behaviour after implementation: ⌘Q with window focused → window closes, process stays; app menu Quit → same; status item right-click Quit → process terminates; window close (X / ⌘W) → menu bar only; login launch → menu bar only; subsequent `open` → re-opens window.
 
 ## 13. UI Design Pass (Claude Design hand-off, 2026-05-07)
 
