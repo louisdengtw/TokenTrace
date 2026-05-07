@@ -96,7 +96,10 @@ final class StatusItemController: NSObject {
     }
 
     @objc private func quitAction() {
-        NSApp.terminate(nil)
+        // Real quit path. AppDelegate.requestRealQuit() flips the
+        // userInitiatedQuit flag before invoking terminate so
+        // applicationShouldTerminate(_:) returns .terminateNow.
+        (NSApp.delegate as? AppDelegate)?.requestRealQuit()
     }
 
     @objc private func appearanceChanged() {

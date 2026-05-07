@@ -27,6 +27,11 @@ struct MainWindowContent: View {
                             : Color(red: 0.965, green: 0.965, blue: 0.969))
         }
         .frame(minWidth: 760, minHeight: 540)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                sidebarCollapsed.toggle()
+            }
+        }
     }
 
     // MARK: - Sidebar

@@ -115,10 +115,10 @@ Reframes the app from "menu bar primary" to "window primary with menu bar access
 
 - [x] 12.1 Update `design.md` Decision 1 with the 2026-05-07 amendment (window-first identity, state transitions, Quit semantics, standard macOS menu bar, history table). Original Decision 1 retained for trail.
 - [x] 12.2 Rewrite `specs/app-shell/spec.md` to consolidate prior scenarios with new Quit semantics and standard menu bar requirements; supersedes task 5.6.
-- [ ] 12.3 Programmatically construct `NSApp.mainMenu` with Application / File / Edit / View / Window / Help menus per the design.md amendment. Build once at launch (in `applicationDidFinishLaunching`) so it persists across `.accessory` ↔ `.regular` transitions.
-- [ ] 12.4 Implement `applicationShouldTerminate(_:)` on `AppDelegate`: if the internal `userInitiatedQuit` flag is `false`, close all visible windows and return `.terminateCancel`; otherwise return `.terminateNow`.
-- [ ] 12.5 Implement `applicationShouldTerminateAfterLastWindowClosed(_:)` to return `false` so that closing the last window via X / ⌘W does not auto-terminate.
-- [ ] 12.6 Update `StatusItemController.quitAction` to set `userInitiatedQuit = true` on the AppDelegate before invoking `NSApp.terminate(_:)`. (May require exposing the flag via a small protocol or weak reference.)
+- [x] 12.3 Programmatically construct `NSApp.mainMenu` with Application / File / Edit / View / Window / Help menus. Built once in `applicationDidFinishLaunching` via the new `App/MainMenuBuilder.swift` so it persists across `.accessory` ↔ `.regular` transitions. View menu hosts a Toggle Sidebar item (⌃⌘S) that posts `.toggleSidebar` for `MainWindowContent` to act on.
+- [x] 12.4 Implement `applicationShouldTerminate(_:)` on `AppDelegate`: if `userInitiatedQuit` is true return `.terminateNow`; otherwise close all visible main windows and return `.terminateCancel`.
+- [x] 12.5 Implement `applicationShouldTerminateAfterLastWindowClosed(_:)` to return `false`.
+- [x] 12.6 `StatusItemController.quitAction` now calls `AppDelegate.requestRealQuit()` (sets the flag, then invokes terminate). The right-click context menu's Quit item lost its ⌘Q key equivalent so the system doesn't double-bind it.
 - [ ] 12.7 Verify behaviour after implementation: ⌘Q with window focused → window closes, process stays; app menu Quit → same; status item right-click Quit → process terminates; window close (X / ⌘W) → menu bar only; login launch → menu bar only; subsequent `open` → re-opens window.
 
 ## 13. UI Design Pass (Claude Design hand-off, 2026-05-07)
