@@ -104,9 +104,9 @@
 
 ## 11. Repository Publishing
 
-- [ ] 11.1 Create new GitHub repo `louisdengtw/TokenTrace` (start private; flip to public when ready).
-- [ ] 11.2 Push initial commit. Configure local `user.email` to the GitHub noreply address (`281707863+louisdengtw@users.noreply.github.com`) to avoid email-privacy push rejection.
-- [ ] 11.3 Move (or copy) `openspec/` from this fork into the new repo so the design history travels with the code.
+- [x] 11.1 Create new GitHub repo `louisdengtw/TokenTrace` ~~(start private; flip to public when ready)~~ — created public from start 2026-05-07 via `gh repo create --public --description "macOS app to track AI subscription usage over time"`. Topics: `macos`, `swift`, `swiftui`. Original product name was `ClaudeUsage`; renamed mid-flight (see proposal.md Amendments).
+- [x] 11.2 Push initial commit. Configure local `user.email` to the GitHub noreply address (`281707863+louisdengtw@users.noreply.github.com`) to avoid email-privacy push rejection.
+- [x] 11.3 Move (or copy) `openspec/` from this fork into the new repo so the design history travels with the code. (Done as part of the initial push; full openspec/ tree travels with the repo.)
 - [x] 11.4 ~~Archive the old fork repo `louisdengtw/ClaudeUsageBar` on GitHub.~~ Superseded 2026-05-07: leave the old fork untouched (no archive, no banner, no rename).
 
 ## 12. Frame Pivot and Quit Semantics (added 2026-05-07)
