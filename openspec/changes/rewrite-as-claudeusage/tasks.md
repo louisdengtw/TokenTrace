@@ -108,3 +108,15 @@
 - [ ] 11.2 Push initial commit. Configure local `user.email` to the GitHub noreply address (`281707863+louisdengtw@users.noreply.github.com`) to avoid email-privacy push rejection.
 - [ ] 11.3 Move (or copy) `openspec/` from this fork into the new repo so the design history travels with the code.
 - [x] 11.4 ~~Archive the old fork repo `louisdengtw/ClaudeUsageBar` on GitHub.~~ Superseded 2026-05-07: leave the old fork untouched (no archive, no banner, no rename).
+
+## 12. Frame Pivot and Quit Semantics (added 2026-05-07)
+
+Reframes the app from "menu bar primary" to "window primary with menu bar accessory". Captured as Decision 1 amendment in design.md and reflected in `specs/app-shell/spec.md`. Supersedes task 5.6 (the launch-flow patch landed as part of this pivot, not as a standalone fix).
+
+- [x] 12.1 Update `design.md` Decision 1 with the 2026-05-07 amendment (window-first identity, state transitions, Quit semantics, standard macOS menu bar, history table). Original Decision 1 retained for trail.
+- [x] 12.2 Rewrite `specs/app-shell/spec.md` to consolidate prior scenarios with new Quit semantics and standard menu bar requirements; supersedes task 5.6.
+- [ ] 12.3 Programmatically construct `NSApp.mainMenu` with Application / File / Edit / View / Window / Help menus per the design.md amendment. Build once at launch (in `applicationDidFinishLaunching`) so it persists across `.accessory` ↔ `.regular` transitions.
+- [ ] 12.4 Implement `applicationShouldTerminate(_:)` on `AppDelegate`: if the internal `userInitiatedQuit` flag is `false`, close all visible windows and return `.terminateCancel`; otherwise return `.terminateNow`.
+- [ ] 12.5 Implement `applicationShouldTerminateAfterLastWindowClosed(_:)` to return `false` so that closing the last window via X / ⌘W does not auto-terminate.
+- [ ] 12.6 Update `StatusItemController.quitAction` to set `userInitiatedQuit = true` on the AppDelegate before invoking `NSApp.terminate(_:)`. (May require exposing the flag via a small protocol or weak reference.)
+- [ ] 12.7 Verify behaviour after implementation: ⌘Q with window focused → window closes, process stays; app menu Quit → same; status item right-click Quit → process terminates; window close (X / ⌘W) → menu bar only; login launch → menu bar only; subsequent `open` → re-opens window.

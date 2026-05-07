@@ -36,6 +36,45 @@ The user is the sole consumer (personal-use app). No other contributors, no user
 
 **Why this choice:** matches the established pattern in macOS productivity apps (Stats, Bartender, Ice, Hidden Bar). Users get the right mental model in each mode.
 
+### Decision 1 — Updated 2026-05-07: window-first with menu bar accessory
+
+Reframes Decision 1's identity: ClaudeUsage's primary surface is the dashboard window, not the menu bar. The status item is an accessory — at-a-glance utilization when the window isn't visible, plus the home of out-of-band actions (popover, real Quit). The technical scaffolding (`LSUIElement = true`, dynamic activation policy) is **retained** because it serves resource hygiene (the Dock icon hides when no window is visible). What changes is the user-visible default behavior, the Quit semantics, and the absence of a standard macOS menu bar.
+
+#### State transitions
+
+| Trigger                                                       | Resulting state                                |
+| ---                                                           | ---                                            |
+| User-initiated launch (Finder, `open`, Spotlight, Launchpad)  | menu bar + Dock + window (`.regular`)          |
+| SMAppService login launch                                     | menu bar only (`.accessory`); no window        |
+| Close window (red button / ⌘W)                                | retreat to menu bar only (`.accessory`)        |
+| ⌘Q / app-menu Quit                                            | intercepted; closes window, app stays running  |
+| Status item right-click → Quit ClaudeUsage                    | terminate process                              |
+
+#### Quit semantics
+
+- ⌘Q and the app menu's Quit item both fire `NSApp.terminate(_:)`.
+- `applicationShouldTerminate(_:)` intercepts, closes all windows, and returns `.terminateCancel` unless an internal flag (`userInitiatedQuit`) is set.
+- Only the status item right-click "Quit ClaudeUsage" sets that flag before invoking terminate.
+- `applicationShouldTerminateAfterLastWindowClosed(_:)` returns `false`, so closing the last window via the red button or ⌘W never auto-terminates.
+- Pattern follows Stats: the app teaches the user that *close ≠ quit* by leaving the menu bar item visible after window close.
+
+#### Standard macOS menu bar
+
+When the window is in focus, the system menu bar hosts the conventional six-menu structure (Application / File / Edit / View / Window / Help), built programmatically as `NSApp.mainMenu`. The previous decision had no `mainMenu` defined; constructing it is part of this pivot.
+
+#### Why pivoted
+
+The original Decision 1 inherited ClaudeUsageBar's identity (a status-bar agent that happens to have a popover). ClaudeUsage's value proposition is **persistent history + dashboard analytics** — the menu bar is one of two surfaces, not the primary surface. Reframing avoids design pressure to treat the dashboard as a side feature.
+
+The pivot was identified during implementation, before v1 ship. It is captured here as an amendment rather than overwriting the original Decision 1, so the design history (what we initially thought, what we observed, why we changed) survives in the spec artifact and not just in git log.
+
+#### Decision 1 history
+
+| Date       | Decision                                                                                                                                |
+| ---        | ---                                                                                                                                     |
+| (original) | Hybrid menu bar app; LSUIElement + dynamic activation policy switching                                                                  |
+| 2026-05-07 | Reframed to window-first with menu bar accessory; added Quit semantics (⌘Q intercepted, real Quit only via status item); added standard macOS menu bar |
+
 ### Decision 2 — Persistence: SQLite via stdlib `SQLite3` C API
 
 Use the C `SQLite3` framework that ships with macOS, not a third-party wrapper like GRDB or SQLite.swift.
