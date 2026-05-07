@@ -53,6 +53,7 @@
 - [x] 5.3 Implement `MainWindowController` that lazily creates the main window. On first show, switch policy to `.regular` and call `NSApp.activate(ignoringOtherApps: true)`.
 - [x] 5.4 Observe `NSWindow.willCloseNotification`; when the last main window closes, switch policy back to `.accessory`.
 - [x] 5.5 Ensure re-opening a window when one is already open just brings it to front (no duplicate).
+- [x] 5.6 In `applicationDidFinishLaunching`, read `NSApplication.launchIsDefaultUserInfoKey`. If true (user-initiated launch), call `mainWindowController.show()` so the main window appears. Login-item auto-launches stay menu-bar-only. Implement `applicationShouldHandleReopen(_:hasVisibleWindows:)` to surface the main window when the user re-`open`s an already-running instance.
 
 ## 6. Menu Bar Display
 

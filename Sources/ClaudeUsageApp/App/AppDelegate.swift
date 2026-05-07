@@ -60,6 +60,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.applyHotkeySetting()
             }
         }
+
+        // Stats / Bartender / Ice convention:
+        //   - user-initiated launch (Finder double-click, `open`, Spotlight) → show main window
+        //   - SMAppService login-item auto-launch                             → menu bar only
+        // Default to false (no window) when the key is absent: safer than surprising
+        // the user with a window from a non-default launch path.
+        let isUserLaunch = (notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool) ?? false
+        if isUserLaunch {
+            mainWindowController.show(initialTab: .dashboard)
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Fires when the user `open`s an already-running instance, or clicks the Dock
+        // icon while one is visible. Either way, surface the main window.
+        mainWindowController.show(initialTab: .dashboard)
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
