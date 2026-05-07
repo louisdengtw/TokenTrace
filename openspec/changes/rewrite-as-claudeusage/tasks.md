@@ -94,7 +94,7 @@
 
 - [x] 10.1 Build via `tools/build-app.sh` and install to `/Applications/ClaudeUsage.app`. (Build done; install to `/Applications/` is a manual step — see "How to verify" in this PR.)
 - [ ] 10.2 Verify menu bar icon appears at AX position Y≈4 (per the macOS 26 troubleshooting check from the old repo's `TROUBLESHOOTING.md`).
-- [ ] 10.3 Smoke test: paste valid cookie, see first sample within 10 seconds, watch icon color update.
+- [x] 10.3 Smoke test: paste valid cookie, see first sample within 10 seconds, watch icon color update.
 - [ ] 10.4 Open main window, verify Dock icon appears; close window, verify it disappears.
 - [ ] 10.5 Verify Dashboard charts render with at least 3 polls' worth of data; verify reset markers appear after the first 5-hour reset (~5h after first poll).
 - [ ] 10.6 Verify hover tooltips show correct timestamp and value.
