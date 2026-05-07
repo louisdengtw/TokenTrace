@@ -31,8 +31,8 @@ the user's local self-signed cert (falling back to ad-hoc).
 A full `Cookie` header from `claude.ai` is pasted into Settings and stored in
 the macOS Keychain. The cookie never leaves your device. There is no
 third-party OAuth and no programmatic sign-in — Anthropic does not currently
-expose either for personal subscriptions, so the manual paste is the only
-path that works without violating their terms.
+expose either for personal subscriptions, so manual paste is the only
+practical path.
 
 ## Credits
 
