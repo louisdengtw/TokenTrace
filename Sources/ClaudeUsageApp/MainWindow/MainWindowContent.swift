@@ -9,23 +9,24 @@ struct MainWindowContent: View {
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             sidebar
-                .navigationSplitViewColumnWidth(
-                    min: sidebarWidth,
-                    ideal: sidebarWidth,
-                    max: sidebarCollapsed ? 56 : 240
-                )
-        } detail: {
+                .frame(width: sidebarWidth)
+
+            Rectangle()
+                .fill(scheme == .dark
+                      ? Color.white.opacity(0.06)
+                      : Color.black.opacity(0.10))
+                .frame(width: 0.5)
+                .ignoresSafeArea()
+
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(scheme == .dark
                             ? Color(red: 0.118, green: 0.118, blue: 0.125)
                             : Color(red: 0.965, green: 0.965, blue: 0.969))
         }
-        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, minHeight: 540)
-        .modifier(SuppressSidebarToggleIfAvailable())
     }
 
     // MARK: - Sidebar
@@ -39,6 +40,7 @@ struct MainWindowContent: View {
             Divider().opacity(0.5)
             sidebarFooter
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(scheme == .dark
                     ? Color(red: 0.118, green: 0.118, blue: 0.125).opacity(0.6)
                     : Color(red: 0.926, green: 0.926, blue: 0.933).opacity(0.6))
@@ -204,18 +206,6 @@ struct MainWindowContent: View {
             MenuBarPreviewView(usageManager: usageManager)
         case .settings:
             SettingsView(usageManager: usageManager)
-        }
-    }
-}
-
-/// `toolbar(removing: .sidebarToggle)` ships in macOS 14. On macOS 13 the
-/// system toggle stays where AppKit puts it; one less customization.
-private struct SuppressSidebarToggleIfAvailable: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 14.0, *) {
-            content.toolbar(removing: .sidebarToggle)
-        } else {
-            content
         }
     }
 }
