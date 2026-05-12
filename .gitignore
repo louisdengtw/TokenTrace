@@ -6,4 +6,7 @@ DerivedData/
 .DS_Store
 .claude/
 build/
+dist/
 note/
+*.xpi
+*.zip

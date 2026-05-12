@@ -34,6 +34,23 @@ third-party OAuth and no programmatic sign-in — Anthropic does not currently
 expose either for personal subscriptions, so manual paste is the only
 practical path.
 
+The Settings paste field accepts either a raw cookie header (`sessionKey=…`)
+or a complete `curl` command from a browser DevTools "Copy as cURL" action —
+the cookie value is extracted automatically. There is also an "Open
+claude.ai" button that opens your default browser at the right URL, so
+you don't need to retype it.
+
+For Firefox / Zen / LibreWolf users, an optional WebExtension at
+[`extension/`](extension/) skips the DevTools step entirely: install the
+add-on, sign into claude.ai, click the toolbar icon, then click "Save" in
+TokenTrace. See [`extension/README.md`](extension/README.md) for install
+instructions. The add-on is distributed as a Mozilla-signed `.xpi` via AMO
+unlisted self-distribution; it is not listed in the AMO public search.
+
+The app registers a `tokentrace://` URL scheme used by the WebExtension to
+hand off the cookie. URL-scheme imports are never silently saved — they
+pre-fill the Settings paste field and require an explicit "Save" click.
+
 ## Credits
 
 The reverse-engineered `claude.ai` web API integration in

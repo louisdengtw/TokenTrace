@@ -11,6 +11,13 @@ final class UsageManager: ObservableObject {
     @Published private(set) var sessionExpired: Bool = false
     @Published private(set) var sessionCookie: String = ""
 
+    /// Cookie value pre-loaded from a `tokentrace://import?cookie=…` URL,
+    /// awaiting explicit user "Save" in the Settings tab. Never auto-saved.
+    @Published var pendingImportCookie: String?
+    /// Error surfaced from an inbound URL-scheme call (malformed, missing
+    /// parameter, undecodable). Cleared when consumed by the Settings UI.
+    @Published var pendingImportError: String?
+
     /// Fixed in v1, ascending. See app-settings spec.
     static let notificationThresholds: [Int] = [25, 50, 75, 90]
 
@@ -56,14 +63,31 @@ final class UsageManager: ObservableObject {
         pollTask = nil
     }
 
-    func saveCookie(_ cookie: String) {
-        CookieKeychain.save(cookie)
-        sessionCookie = cookie
-        sessionExpired = false
-        errorMessage = nil
-        Task { [weak self] in
-            await self?.fetchOnce()
+    /// Routes raw user input (raw cookie header, `Cookie:`-prefixed, or full
+    /// curl command) through `CookieParser` before persisting to Keychain.
+    /// Both the Settings paste field and the URL-scheme pre-fill path land here.
+    @discardableResult
+    func saveCookie(_ raw: String) -> Result<Void, CookieParserError> {
+        switch CookieParser.parse(raw) {
+        case .success(let parsed):
+            CookieKeychain.save(parsed)
+            sessionCookie = parsed
+            sessionExpired = false
+            errorMessage = nil
+            Task { [weak self] in
+                await self?.fetchOnce()
+            }
+            return .success(())
+        case .failure(let error):
+            return .failure(error)
         }
+    }
+
+    /// Called by the Settings UI after it has consumed a pending import value
+    /// (either applied it to the paste field or surfaced its error).
+    func consumePendingImport() {
+        pendingImportCookie = nil
+        pendingImportError = nil
     }
 
     func clearCookie() {

@@ -72,6 +72,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            // Intentionally do not log the URL itself: a tokentrace://import URL
+            // carries the user's session cookie in its query string.
+            log.debug("application(_:open:) received URL with scheme=\(url.scheme ?? "?", privacy: .public)")
+            dispatchURLScheme(url)
+        }
+    }
+
+    private func dispatchURLScheme(_ url: URL) {
+        switch URLSchemeHandler.handle(url) {
+        case .importCookie(let value):
+            usageManager.pendingImportCookie = value
+            mainWindowController.show(initialTab: .settings)
+        case .importMalformed(let reason):
+            usageManager.pendingImportError = reason
+            mainWindowController.show(initialTab: .settings)
+        case .ignored:
+            break
+        }
+    }
+
     /// Intercepts ⌘Q / app menu Quit; routes them to "close all windows" while
     /// keeping the process alive. Status item right-click → Quit sets the
     /// `userInitiatedQuit` flag first to opt out of the intercept.
