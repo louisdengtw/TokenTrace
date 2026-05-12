@@ -6,11 +6,18 @@ struct SettingsView: View {
     @ObservedObject var usageManager: UsageManager
 
     @State private var pastedCookie = ""
+    @State private var parserErrorMessage: String?
     @State private var notificationsOn = AppSettings.notificationsEnabled
     @State private var openAtLoginOn = AppSettings.openAtLoginEnabled
     @State private var openAtLoginErrorMessage: String?
 
+    @Environment(\.openURL) private var openURL
+
     private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "SettingsView")
+
+    /// Placeholder for the Firefox/Zen add-on install instructions. Will resolve
+    /// to a real anchor once group 6 (AMO unlisted distribution) ships.
+    private static let extensionDocsURL = URL(string: "https://github.com/louisdengtw/TokenTrace#firefox-extension")!
 
     var body: some View {
         Form {
@@ -20,6 +27,9 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(20)
+        .onAppear { applyPendingImportIfAny() }
+        .onChange(of: usageManager.pendingImportCookie) { _ in applyPendingImportIfAny() }
+        .onChange(of: usageManager.pendingImportError) { _ in applyPendingImportIfAny() }
     }
 
     // MARK: - Cookie
@@ -36,6 +46,7 @@ struct SettingsView: View {
                     Button("Sign out", role: .destructive) {
                         usageManager.clearCookie()
                         pastedCookie = ""
+                        parserErrorMessage = nil
                     }
                 }
             } else {
@@ -44,7 +55,7 @@ struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Paste cookie header:")
+                Text("Paste cookie header or curl command:")
                     .font(.caption)
                 TextEditor(text: $pastedCookie)
                     .font(.system(.body, design: .monospaced))
@@ -52,17 +63,28 @@ struct SettingsView: View {
                     .scrollContentBackground(.hidden)
                     .background(.quinary, in: RoundedRectangle(cornerRadius: 4))
                 HStack {
+                    Button {
+                        // /settings/usage triggers the same /api/organizations/{id}/usage
+                        // request TokenTrace polls, so DevTools → Network → "Copy as cURL"
+                        // lands on the right request straight away.
+                        openURL(URL(string: "https://claude.ai/settings/usage")!)
+                    } label: {
+                        Label("Open claude.ai", systemImage: "safari")
+                    }
                     Spacer()
                     Button("Save") {
-                        let trimmed = pastedCookie.trimmingCharacters(in: .whitespacesAndNewlines)
-                        usageManager.saveCookie(trimmed)
-                        pastedCookie = ""
+                        save()
                     }
+                    .keyboardShortcut(.defaultAction)
                     .disabled(pastedCookie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
 
-            if usageManager.sessionExpired {
+            if let parserErrorMessage {
+                Label(parserErrorMessage, systemImage: "exclamationmark.circle")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            } else if usageManager.sessionExpired {
                 Label("Session expired — paste a fresh cookie above.",
                       systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -71,6 +93,41 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
                     .font(.caption)
             }
+
+            HStack(spacing: 4) {
+                Image(systemName: "puzzlepiece.extension")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                Text("Skip the dance —")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("install the Firefox/Zen add-on") {
+                    openURL(Self.extensionDocsURL)
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+        }
+    }
+
+    private func save() {
+        switch usageManager.saveCookie(pastedCookie) {
+        case .success:
+            pastedCookie = ""
+            parserErrorMessage = nil
+        case .failure(let error):
+            parserErrorMessage = error.errorDescription ?? "Could not save cookie."
+        }
+    }
+
+    private func applyPendingImportIfAny() {
+        if let pending = usageManager.pendingImportCookie, !pending.isEmpty {
+            pastedCookie = pending
+            parserErrorMessage = nil
+            usageManager.consumePendingImport()
+        } else if let error = usageManager.pendingImportError {
+            parserErrorMessage = "Import failed: \(error)"
+            usageManager.consumePendingImport()
         }
     }
 

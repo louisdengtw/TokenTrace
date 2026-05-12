@@ -35,5 +35,18 @@
         <key>NSAllowsArbitraryLoads</key>
         <false/>
     </dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.louisdeng.tokentrace.import</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>tokentrace</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

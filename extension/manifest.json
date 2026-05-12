@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "TokenTrace Cookie Import",
+  "short_name": "TokenTrace",
+  "version": "0.1.0",
+  "description": "Hand off your claude.ai session cookie to the TokenTrace macOS app in one click.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": ["cookies"],
+  "host_permissions": ["https://claude.ai/*"],
+  "action": {
+    "default_title": "Send claude.ai cookie to TokenTrace",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tokentrace-import@louisdeng.dev",
+      "strict_min_version": "115.0"
+    }
+  }
+}
