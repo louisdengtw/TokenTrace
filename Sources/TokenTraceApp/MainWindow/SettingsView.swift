@@ -15,9 +15,7 @@ struct SettingsView: View {
 
     private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "SettingsView")
 
-    /// Placeholder for the Firefox/Zen add-on install instructions. Will resolve
-    /// to a real anchor once group 6 (AMO unlisted distribution) ships.
-    private static let extensionDocsURL = URL(string: "https://github.com/louisdengtw/TokenTrace#firefox-extension")!
+    private static let extensionDocsURL = URL(string: "https://github.com/louisdengtw/TokenTrace/releases/latest")!
 
     var body: some View {
         Form {
