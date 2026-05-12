@@ -42,12 +42,12 @@
 
 ## 6. AMO unlisted distribution
 
-- [ ] 6.1 Create AMO developer account if not already present (one-time) *(manual)*
-- [ ] 6.2 Submit extension as **unlisted** / "On your own" self-distribution *(manual)*
-- [ ] 6.3 Wait for automated signing; on rejection, fix manifest and resubmit *(manual)*
-- [ ] 6.4 Download the signed `.xpi` and host it as a GitHub Release asset *(manual)*
+- [x] 6.1 Create AMO developer account if not already present (one-time) *(manual)*
+- [x] 6.2 Submit extension as **unlisted** / "On your own" self-distribution *(manual)*
+- [x] 6.3 Wait for automated signing; on rejection, fix manifest and resubmit *(manual — required bumping `data_collection_permissions`, `strict_min_version` to 142, and a fresh gecko id after AMO retained the deleted v1 id)*
+- [x] 6.4 Download the signed `.xpi` and host it as a GitHub Release asset *(manual)*
 - [x] 6.5 Document install steps in `extension/README.md`: download `.xpi`, `about:addons` → ⚙ → "Install Add-on From File"
-- [ ] 6.6 Update the Settings hint URL (task 2.4) to point at the install docs *(deferred — placeholder URL `https://github.com/louisdengtw/TokenTrace#firefox-extension` already in code; resolve when README anchor is added in 7.1 follow-up)*
+- [x] 6.6 Update the Settings hint URL (task 2.4) to point at the install docs — now points at `releases/latest`; the landing page carries 3-step install instructions in release notes plus the `.xpi` asset
 
 ## 7. Documentation & release
 
