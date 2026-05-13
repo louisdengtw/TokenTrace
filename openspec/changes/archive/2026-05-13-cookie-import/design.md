@@ -142,3 +142,15 @@ Rollback: removing the `cookie-import` capability + `app-settings` delta + rever
 3. **Confirmation UX for D5**: is "open Settings with pre-filled paste" the right shape, or is a dedicated modal sheet better? Defer until specs phase or implementation, when SwiftUI shape is concrete.
 4. **Should the extension validate the cookie before handoff?** E.g., ping `/api/bootstrap` from the extension and confirm `account != null` before sending to TokenTrace. Pro: fewer "session expired" surprises. Con: doubles the request count and adds a permission. Lean toward no for v1.1.
 5. **Does AMO-signed XPI need re-signing on every version bump?** Yes (each version is signed separately) — confirms whether we want to script the upload step.
+
+## Post-implementation amendments
+
+### 2026-05-12: AMO submission required three manifest fields beyond D6
+
+During AMO unlisted submission, the Mozilla signing pipeline demanded three `browser_specific_settings.gecko.*` fields that D6 did not anticipate. They do not change behavior; they only declare facts the spec already implies. Captured here so future readers don't conclude the manifest drifted past the design.
+
+- **`data_collection_permissions.required: ["authenticationInfo"]`** — Mozilla's 2025 policy makes this property non-optional. We read `sessionKey` cookies and hand them to another process; `authenticationInfo` is the honest declaration. (Spec already treats the cookie as a session secret — see D5.)
+- **`strict_min_version: "142.0"`** — initially declared as `"115.0"`. AMO emitted warnings that `data_collection_permissions` is silently ignored on Firefox < 140 (desktop) and < 142 (Android). Bumped to `"142.0"` to zero out the warnings. The extension is macOS-app-coupled, so excluding Firefox-on-Android < 142 has no functional cost; Zen tracks Firefox stable past 142.
+- **`gecko.id` is `tokentrace-import-v2@louisdeng.dev`, not `tokentrace-import@…`** — the original id was reserved by a failed submission attempt that landed on the listed-distribution flow. AMO does not release deleted ids (anti-hijack policy), so v2 is the working id. Functionally identical; only the literal string changed.
+
+D6's minimal-permissions intent is unchanged: `permissions: ["cookies"]` and `host_permissions: ["https://claude.ai/*"]` are still exact-equal to the spec. No content scripts, no background fetch, no third-party origins were added.
