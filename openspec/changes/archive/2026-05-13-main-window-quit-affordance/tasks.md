@@ -12,4 +12,4 @@
 
 ## 3. Archive
 
-- [ ] 3.1 After merge, run `openspec archive main-window-quit-affordance` to fold deltas into `openspec/specs/app-shell/spec.md`
+- [x] 3.1 After merge, run `openspec archive main-window-quit-affordance` to fold deltas into `openspec/specs/app-shell/spec.md`

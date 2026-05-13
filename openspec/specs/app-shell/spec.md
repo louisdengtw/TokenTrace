@@ -3,9 +3,7 @@
 ## Purpose
 
 Application lifecycle, activation policy, and main-menu skeleton for TokenTrace. The app is window-first with a menu bar accessory: user-initiated launches surface the main window and switch to `.regular` activation; SMAppService login launches stay menu-bar-only in `.accessory`. The Dock icon is scoped to "there is a window to see." Quit is intercepted: ⌘Q closes the window but keeps the process running; only the status-item right-click "Quit" terminates.
-
 ## Requirements
-
 ### Requirement: Login-item launch presents menu bar only
 
 When the application is launched automatically as a login item (via `SMAppService.mainApp` or any other non-user-initiated path), the application SHALL present only the menu bar status item, with no Dock icon and no main window.
@@ -66,7 +64,10 @@ The application SHALL run with `NSApplication.ActivationPolicy.regular` while at
 
 ### Requirement: Quit reaches termination only via the menu bar status item
 
-The application SHALL intercept all standard Quit attempts (⌘Q, the application menu's "Quit TokenTrace" item, any programmatic `NSApp.terminate(_:)` invocation without prior consent) and route them to "close all windows" behavior, leaving the process running with the menu bar item visible. Real process termination SHALL be reachable only by selecting "Quit TokenTrace" from the menu bar status item's right-click context menu, which sets an internal `userInitiatedQuit` flag before invoking terminate.
+The application SHALL intercept all standard Quit attempts (⌘Q, the application menu's "Quit TokenTrace" item, any programmatic `NSApp.terminate(_:)` invocation without prior consent) and route them to "close all windows" behavior, leaving the process running with the menu bar item visible. Real process termination SHALL be reachable from user-initiated affordances that set an internal `userInitiatedQuit` flag before invoking terminate. Two such affordances exist:
+
+1. **"Quit TokenTrace"** in the menu bar status item's right-click context menu.
+2. **The power-icon button** in the main window's sidebar footer, rendered to the right of the sync-status indicator and hidden when the sidebar is collapsed.
 
 `applicationShouldTerminateAfterLastWindowClosed(_:)` SHALL return `false`, so closing the last window via the red button or ⌘W never auto-terminates.
 
@@ -93,6 +94,20 @@ The application SHALL intercept all standard Quit attempts (⌘Q, the applicatio
 - **AND** `applicationShouldTerminate(_:)` returns `.terminateNow`
 - **AND** the process terminates and both the menu bar item and any window disappear
 
+#### Scenario: Real Quit from the main window sidebar footer
+
+- **WHEN** the user clicks the power-icon button in the main window's sidebar footer
+- **THEN** the button's action invokes `AppDelegate.requestRealQuit()`
+- **AND** `requestRealQuit()` sets `userInitiatedQuit = true` and invokes `NSApp.terminate(_:)`
+- **AND** `applicationShouldTerminate(_:)` returns `.terminateNow`
+- **AND** the process terminates and both the menu bar item and the main window disappear
+
+#### Scenario: Sidebar collapsed hides the quit affordance
+
+- **WHEN** the user collapses the main window sidebar to its narrow rail (icon-only)
+- **THEN** the power-icon button is not rendered
+- **AND** the only remaining real-quit affordance is the menu bar status item right-click menu
+
 ### Requirement: Standard macOS menu bar when window is in focus
 
 When the application is in `.regular` activation policy with a main window visible, the system menu bar SHALL host the conventional six-menu structure constructed programmatically as `NSApp.mainMenu`:
@@ -116,3 +131,4 @@ When the application is in `.regular` activation policy with a main window visib
 - **WHEN** the application transitions between `.accessory` and `.regular` activation policies
 - **THEN** `NSApp.mainMenu` remains defined (constructed once at launch)
 - **AND** the next time a main window becomes frontmost, the six menus are immediately available
+
