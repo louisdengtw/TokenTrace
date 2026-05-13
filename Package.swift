@@ -13,7 +13,9 @@ let package = Package(
         .executableTarget(
             name: "TokenTraceApp",
             path: "Sources/TokenTraceApp",
-            resources: [],
+            resources: [
+                .copy("Resources")
+            ],
             linkerSettings: [
                 .linkedLibrary("sqlite3")
             ]

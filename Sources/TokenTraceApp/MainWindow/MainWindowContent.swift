@@ -5,6 +5,7 @@ struct MainWindowContent: View {
     @ObservedObject var selection: MainTabSelection
     @Environment(\.colorScheme) private var scheme
     @State private var sidebarCollapsed: Bool = false
+    @State private var isExporting: Bool = false
 
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
 
@@ -31,6 +32,16 @@ struct MainWindowContent: View {
             withAnimation(.easeInOut(duration: 0.18)) {
                 sidebarCollapsed.toggle()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportReportRequested)) { _ in
+            // Reset & open. Per spec the sheet always opens to defaults — that
+            // is enforced inside ExportSheetView, but we also toggle here in
+            // case the user spammed the menu item to re-open it.
+            isExporting = false
+            isExporting = true
+        }
+        .sheet(isPresented: $isExporting) {
+            ExportSheetView(usageManager: usageManager)
         }
     }
 
@@ -151,22 +162,41 @@ struct MainWindowContent: View {
     }
 
     private var sidebarFooter: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(syncDotColor)
-                .frame(width: 6, height: 6)
+        HStack(spacing: 7) {
+            ZStack {
+                Circle()
+                    .fill(syncDotColor.opacity(0.22))
+                    .frame(width: 12, height: 12)
+                Circle()
+                    .fill(syncDotColor)
+                    .frame(width: 6, height: 6)
+            }
             if !sidebarCollapsed {
-                Text(syncText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(syncStatusLabel)
+                        .font(.system(size: 10, weight: .medium))
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                        .foregroundStyle(.tertiary)
+                    Text(syncText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, alignment: sidebarCollapsed ? .center : .leading)
         .padding(.horizontal, sidebarCollapsed ? 8 : 14)
-        .padding(.vertical, 10)
-        .help(sidebarCollapsed ? syncText : "")
+        .padding(.vertical, 11)
+        .help(sidebarCollapsed ? "\(syncStatusLabel) · \(syncText)" : "")
+    }
+
+    private var syncStatusLabel: String {
+        if usageManager.sessionExpired { return "Session" }
+        if usageManager.errorMessage != nil { return "Error" }
+        if usageManager.isLoading { return "Syncing" }
+        return "Synced"
     }
 
     private var syncDotColor: Color {

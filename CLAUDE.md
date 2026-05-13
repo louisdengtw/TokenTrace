@@ -107,6 +107,19 @@ open /Applications/TokenTrace.app
 - Verification group 10: 8/9 manual smoke tests passed; 10.8 (open at login
   reboot test) outstanding.
 - Group 11 (publishing): not yet executed.
+- **`usage-export` change in flight** (branch `feat/usage-export`) — adds an
+  HTML report export and unifies the Dashboard's range selector to chip
+  presets + custom From/To. See `openspec/changes/usage-export/`.
+
+## Export Report feature
+
+Open via Dashboard toolbar's "Export Report…" button, File → Export Report…,
+or ⌘E. Produces a self-contained HTML file with Chart.js inlined — opens
+offline in any browser. Bundled assets:
+
+- `Sources/TokenTraceApp/Resources/chart.umd.min.js` (Chart.js 4.4.1, pinned)
+- `Sources/TokenTraceApp/Resources/report.html.template` (sentinel-token
+  template; substitutes happen in `Services/ReportGenerator.swift`)
 
 ## API endpoints used (for reference)
 

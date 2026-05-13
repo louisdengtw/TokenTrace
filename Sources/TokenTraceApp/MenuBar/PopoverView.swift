@@ -8,56 +8,67 @@ struct PopoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            topBar
             content
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-            Spacer(minLength: 0)
-            footer
+                .padding(.bottom, 6)
+            bottomBar
         }
-        .frame(width: 320, height: 280)
+        .frame(width: 320)
         .background(.ultraThinMaterial)
     }
 
-    // MARK: - Header
+    // MARK: - Top bar (brand + actions)
 
-    private var header: some View {
+    private var topBar: some View {
         HStack(spacing: 6) {
-            Text("TokenTrace")
-                .font(.system(size: 12, weight: .semibold))
-                .tracking(-0.06)
+            HStack(spacing: 6) {
+                Text("TokenTrace")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(-0.06)
 
-            if usageManager.hasWeeklySonnet {
-                Text("PRO+")
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(0.4)
-                    .foregroundStyle(scheme == .dark
-                        ? Color(red: 0.353, green: 0.784, blue: 0.980)   // #5AC8FA
-                        : Color(red: 0.000, green: 0.400, blue: 0.800))  // #0066CC
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(scheme == .dark
-                                ? Color(red: 0.039, green: 0.518, blue: 1.00).opacity(0.20)
-                                : Color(red: 0.000, green: 0.478, blue: 1.00).opacity(0.12))
-                    )
+                if usageManager.hasWeeklySonnet {
+                    Text("PRO+")
+                        .font(.system(size: 9, weight: .semibold))
+                        .tracking(0.4)
+                        .foregroundStyle(scheme == .dark
+                            ? Color(red: 0.353, green: 0.784, blue: 0.980)   // #5AC8FA
+                            : Color(red: 0.000, green: 0.400, blue: 0.800))  // #0066CC
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(scheme == .dark
+                                    ? Color(red: 0.039, green: 0.518, blue: 1.00).opacity(0.20)
+                                    : Color(red: 0.000, green: 0.478, blue: 1.00).opacity(0.12))
+                        )
+                }
             }
 
             Spacer()
 
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(syncIndicatorColor)
-                    .frame(width: 5, height: 5)
-                Text(syncLabel)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
+            Button {
+                openMainWindow(.dashboard)
+            } label: {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 10.5, weight: .medium))
             }
+            .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
+            .help("Open Dashboard")
+
+            Button {
+                openMainWindow(.settings)
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
+            .help("Settings")
         }
         .padding(.top, 9)
         .padding(.horizontal, 12)
-        .padding(.bottom, 7)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Content
@@ -105,28 +116,23 @@ struct PopoverView: View {
 
     // MARK: - Footer
 
-    private var footer: some View {
-        HStack(spacing: 8) {
-            Button("Open Main Window") {
-                openMainWindow(.dashboard)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .frame(maxWidth: .infinity)
-
-            Button("Settings…") {
-                openMainWindow(.settings)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
+    private var bottomBar: some View {
+        HStack(spacing: 5) {
+            Spacer()
+            Circle()
+                .fill(syncIndicatorColor)
+                .frame(width: 5, height: 5)
+            Text(syncLabel)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(scheme == .dark
-                    ? Color.white.opacity(0.08)
-                    : Color.black.opacity(0.08))
+                    ? Color.white.opacity(0.05)
+                    : Color.black.opacity(0.05))
                 .frame(height: 0.5)
         }
     }

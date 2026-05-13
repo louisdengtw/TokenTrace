@@ -139,6 +139,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.post(name: .toggleSidebar, object: nil)
     }
 
+    /// Brings the main window forward (so the sheet has a host) and posts a
+    /// notification that `MainWindowContent` listens for to present the
+    /// export sheet. Wired to the File menu's Export Report… item (⌘E).
+    @objc func exportReportAction(_ sender: Any?) {
+        mainWindowController.show(initialTab: .dashboard)
+        NotificationCenter.default.post(name: .exportReportRequested, object: nil)
+    }
+
     // MARK: - Quit semantics
 
     /// Sets the `userInitiatedQuit` flag and calls `NSApp.terminate(_:)`.

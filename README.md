@@ -6,7 +6,9 @@ trend over time — the history view that Claude itself doesn't surface.
 
 - Menu bar quick view: 5-hour / 7-day / 7-day Sonnet at a glance, color-coded.
 - Dashboard: trend charts with reset markers, hover crosshair, and a range
-  selector (24h / 7d / 30d / All).
+  selector with chip presets (24h / 7d / 30d / All) plus custom From/To.
+- Export Report: produce a self-contained HTML report from your local data
+  (Dashboard toolbar → Export Report…, or File menu / ⌘E).
 - Persistent local SQLite store; nothing leaves your machine.
 - Threshold notifications when you're approaching session limits.
 - Native SwiftUI on macOS 13+.

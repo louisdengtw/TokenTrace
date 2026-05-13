@@ -51,6 +51,18 @@ if [ -f "${REPO_ROOT}/Resources/${APP_NAME}.icns" ]; then
     cp "${REPO_ROOT}/Resources/${APP_NAME}.icns" "${RES_DIR}/${APP_NAME}.icns"
 fi
 
+# SPM emits resources for the executable target as a sibling bundle named
+# <Module>_<Target>.bundle. `Bundle.module` looks for it inside the app's
+# Resources dir at runtime — must be copied in, or the report exporter
+# crashes on first Save (Bundle.module assertion failure).
+SPM_BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+SPM_RESOURCE_BUNDLE="${SPM_BIN_DIR}/${EXECUTABLE_TARGET}_${EXECUTABLE_TARGET}.bundle"
+if [ -d "${SPM_RESOURCE_BUNDLE}" ]; then
+    cp -R "${SPM_RESOURCE_BUNDLE}" "${RES_DIR}/"
+else
+    echo "WARNING: SPM resource bundle not found at ${SPM_RESOURCE_BUNDLE}" >&2
+fi
+
 printf 'APPL????' > "${CONTENTS}/PkgInfo"
 
 # Strip extended attributes that confuse codesign on case-insensitive filesystems.
