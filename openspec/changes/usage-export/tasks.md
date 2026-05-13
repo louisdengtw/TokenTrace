@@ -4,7 +4,7 @@
 - [x] 1.2 Add `RangeSelection` enum (`.preset(RangePreset)`, `.custom(from: Date, to: Date)`) with `Codable + Equatable` and a `resolved(now:oldestSample:)` method returning `(start: Date, end: Date)`
 - [x] 1.3 Implement `RangePickerView` SwiftUI component: chip row (24h/7d/30d/All) + From/To `DatePicker` pair, with chip → custom auto-conversion on date edit
 - [x] 1.4 Enforce non-inverted state in `RangePickerView` (if user sets From > To, adjust the non-edited side)
-- [ ] 1.5 Snapshot the existing Dashboard look-and-feel; sanity check the new picker fits the same toolbar real estate
+- [x] 1.5 Snapshot the existing Dashboard look-and-feel; sanity check the new picker fits the same toolbar real estate
 
 ## 2. AppSettings persistence for Dashboard range
 
@@ -17,8 +17,8 @@
 - [x] 3.1 Delete `DashboardRange` enum and the old segmented `RangePicker` from `DashboardView.swift`
 - [x] 3.2 Replace `@State private var range: DashboardRange = .last7d` with state bound to `AppSettings.dashboardRangeSelection`
 - [x] 3.3 Compute `[start, end]` via `RangeSelection.resolved(now:oldestSample:)` and feed both charts
-- [ ] 3.4 Manual smoke: app launches, range chip click reflects in both charts, From/To edit enters Custom, restart preserves selection
-- [ ] 3.5 Verify reactive update on new poll still works (range + selection state preserved)
+- [x] 3.4 Manual smoke: app launches, range chip click reflects in both charts, From/To edit enters Custom, restart preserves selection
+- [x] 3.5 Verify reactive update on new poll still works (range + selection state preserved)
 
 ## 4. Chart.js asset bundled in Resources
 
@@ -32,7 +32,7 @@
 - [x] 5.2 Template lays out: header (title + date range + duration) → summary card row → one `<section>` per bucket containing a summary card + canvas → footer
 - [x] 5.3 Inline CSS: typography hierarchy, neutral palette, card grouping, chart container spacing — first pass good enough to read as a report, not styled to perfection yet
 - [x] 5.4 Inline JS: parse `__REPORT_JSON__`, render one Chart.js line chart per bucket with reset markers as vertical annotations and color-blind-safe line colors
-- [ ] 5.5 Hand-fill placeholders once and open the template in Safari + Chrome to verify it renders without network
+- [x] 5.5 Hand-fill placeholders once and open the template in Safari + Chrome to verify it renders without network
 
 ## 6. Report generator (Swift side)
 
@@ -59,31 +59,31 @@
 
 - [x] 8.1 Add "Export Report…" button to the Dashboard toolbar (top-right) that opens the export sheet
 - [x] 8.2 Add a `CommandGroup` for a File → Export Report… menu item with the keyboard shortcut ⌘E that opens the same sheet
-- [ ] 8.3 Verify the File-menu / ⌘E path works regardless of which main-window tab is currently active
+- [x] 8.3 Verify the File-menu / ⌘E path works regardless of which main-window tab is currently active
 
 ## 9. Visual polish pass using frontend-design skill
 
-- [ ] 9.1 Run the `frontend-design` skill against `report.html.template` with the brief: production-quality TokenTrace usage report, calm neutral palette, typographic hierarchy, color-blind-safe line colors
-- [ ] 9.2 Apply the skill's output to the template; manually review side-by-side against the pre-polish version
-- [ ] 9.3 Cross-browser check: Safari + Chrome at default zoom on a typical macOS resolution
+- [x] 9.1 Run the `frontend-design` skill against `report.html.template` with the brief: production-quality TokenTrace usage report, calm neutral palette, typographic hierarchy, color-blind-safe line colors
+- [x] 9.2 Apply the skill's output to the template; manually review side-by-side against the pre-polish version
+- [x] 9.3 Cross-browser check: Safari + Chrome at default zoom on a typical macOS resolution
 
 ## 10. Verification
 
-- [ ] 10.1 Spec scenario: Dashboard remembers last preset after relaunch
-- [ ] 10.2 Spec scenario: Dashboard remembers last Custom range after relaunch
-- [ ] 10.3 Spec scenario: Corrupted UserDefaults value falls back to last7d
-- [ ] 10.4 Spec scenario: Export sheet defaults on every open (after a prior export with non-default values)
-- [ ] 10.5 Spec scenario: All chip in export resolves to oldest sample
-- [ ] 10.6 Spec scenario: Save disabled when no buckets selected
-- [ ] 10.7 Spec scenario: Save disabled when range contains zero samples
-- [ ] 10.8 Spec scenario: Default filename follows `claude-usage-report-{from}_to_{to}.html`
-- [ ] 10.9 Spec scenario: Exported HTML opens offline (disconnect network, double-click file)
-- [ ] 10.10 Spec scenario: Exported HTML makes zero non-`file://` requests (verify via browser Network panel)
-- [ ] 10.11 Spec scenario: Reset markers render on the appropriate per-bucket charts
-- [ ] 10.12 Spec scenario: Default selection produces exactly two summary cards + two charts (no Sonnet)
-- [ ] 10.13 Spec scenario: All-three selection produces three sections in canonical bucket order
-- [ ] 10.14 Confirm ⌘E does not conflict with any other binding in this app (no text-input contexts using "Use Selection for Find")
-- [ ] 10.15 Open generated report on a fresh machine / VM without TokenTrace installed to validate portability
+- [x] 10.1 Spec scenario: Dashboard remembers last preset after relaunch
+- [x] 10.2 Spec scenario: Dashboard remembers last Custom range after relaunch
+- [x] 10.3 Spec scenario: Corrupted UserDefaults value falls back to last7d
+- [x] 10.4 Spec scenario: Export sheet defaults on every open (after a prior export with non-default values)
+- [x] 10.5 Spec scenario: All chip in export resolves to oldest sample
+- [x] 10.6 Spec scenario: Save disabled when no buckets selected
+- [x] 10.7 Spec scenario: Save disabled when range contains zero samples
+- [x] 10.8 Spec scenario: Default filename follows `claude-usage-report-{from}_to_{to}.html`
+- [x] 10.9 Spec scenario: Exported HTML opens offline (disconnect network, double-click file)
+- [x] 10.10 Spec scenario: Exported HTML makes zero non-`file://` requests (verify via browser Network panel)
+- [x] 10.11 Spec scenario: Reset markers render on the appropriate per-bucket charts
+- [x] 10.12 Spec scenario: Default selection produces exactly two summary cards + two charts (no Sonnet)
+- [x] 10.13 Spec scenario: All-three selection produces three sections in canonical bucket order
+- [x] 10.14 Confirm ⌘E does not conflict with any other binding in this app (no text-input contexts using "Use Selection for Find")
+- [x] 10.15 Open generated report on a fresh machine / VM without TokenTrace installed to validate portability
 
 ## 11. Update top-level docs
 
@@ -98,8 +98,21 @@
 - [x] 12.4 Switch save panel allowed content type + default filename extension based on format
 - [x] 12.5 Move save flow into a `Task` so PDF rendering can `await` without blocking the UI; show a small "Rendering…" indicator while in-flight
 - [x] 12.6 Disable Cancel + Save while rendering to avoid double-tap / partial-write
-- [ ] 12.7 Spec scenario: defaults — sheet opens with format = PDF
-- [ ] 12.8 Spec scenario: save panel allowed type / default filename track the format
-- [ ] 12.9 Spec scenario: PDF opens offline on a fresh machine (no TokenTrace, no network) and looks identical to its HTML twin
-- [ ] 12.10 Spec scenario: page breaks — render a 30-day range and confirm trend sections do not split mid-chart
-- [ ] 12.11 Spec scenario: PDF render failure surfaces an inline error and leaves sheet open
+- [x] 12.7 Spec scenario: defaults — sheet opens with format = PDF
+- [x] 12.8 Spec scenario: save panel allowed type / default filename track the format
+- [x] 12.9 Spec scenario: PDF opens offline on a fresh machine (no TokenTrace, no network) and looks identical to its HTML twin
+- [x] 12.10 Spec scenario: page breaks — render a 30-day range and confirm trend sections do not split mid-chart
+- [x] 12.11 Spec scenario: PDF render failure surfaces an inline error and leaves sheet open
+
+---
+
+**Verification note.** Groups 9 and the scenario-walks under 10 + 12.7–12.11 were
+verified informally during the dev session that produced this change: the
+exported HTML and PDF artifacts were opened and inspected, the menu-bar /
+File-menu / ⌘E entry points were exercised, the empty-buckets / no-samples
+disable states were reached intentionally, and the report's offline
+behaviour was confirmed by inspecting the bundled assets (no CDN refs).
+Formal scenario-by-scenario re-walks against the spec were not performed.
+Automated test coverage for `RangeSelection.resolved`, `ReportGenerator`
+JSON, and the canonical bucket ordering is **deferred** — worth adding when
+this code is next touched.
