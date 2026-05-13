@@ -6,6 +6,7 @@ struct MainWindowContent: View {
     @Environment(\.colorScheme) private var scheme
     @State private var sidebarCollapsed: Bool = false
     @State private var isExporting: Bool = false
+    @State private var quitHovered: Bool = false
 
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
 
@@ -184,12 +185,28 @@ struct MainWindowContent: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                quitButton
             }
         }
         .frame(maxWidth: .infinity, alignment: sidebarCollapsed ? .center : .leading)
         .padding(.horizontal, sidebarCollapsed ? 8 : 14)
         .padding(.vertical, 11)
         .help(sidebarCollapsed ? "\(syncStatusLabel) · \(syncText)" : "")
+    }
+
+    private var quitButton: some View {
+        Button {
+            (NSApp.delegate as? AppDelegate)?.requestRealQuit()
+        } label: {
+            Image(systemName: "power")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(quitHovered ? Color.red : Color.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { quitHovered = $0 }
+        .help("Quit TokenTrace (stops background sync)")
     }
 
     private var syncStatusLabel: String {
