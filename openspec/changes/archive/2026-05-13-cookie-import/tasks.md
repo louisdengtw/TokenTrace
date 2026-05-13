@@ -54,4 +54,4 @@
 - [x] 7.1 Update root `README.md` "Auth" section: mention the curl-paste alternative and the Firefox/Zen extension; keep the neutral ToS posture
 - [x] 7.2 Note the new URL scheme in `README.md` (or a separate doc) so curious users understand what `tokentrace://` is for
 - [x] 7.3 Cut a v1.1 release tag once parser + URL scheme + Settings UI ship; extension tagging is independent (`extension-v0.1.0`) *(manual: `git tag v1.1` after smoke tests)*
-- [ ] 7.4 After at least one full week of personal use, archive this change with `openspec archive cookie-import` *(manual)*
+- [x] 7.4 After at least one full week of personal use, archive this change with `openspec archive cookie-import` *(archived 2026-05-12, 7 days ahead of plan; dogfood verification continues informally on the archived spec)*
