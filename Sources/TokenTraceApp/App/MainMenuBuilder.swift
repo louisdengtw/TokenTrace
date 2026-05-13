@@ -3,6 +3,11 @@ import AppKit
 extension Notification.Name {
     /// Posted by the View menu's Toggle Sidebar item; observed in `MainWindowContent`.
     static let toggleSidebar = Notification.Name("dev.louisdeng.tokentrace.toggleSidebar")
+
+    /// Posted by the File menu's Export Report… item (⌘E) and by the Dashboard
+    /// toolbar's Export button; observed in `MainWindowContent` to present the
+    /// export sheet over any active tab.
+    static let exportReportRequested = Notification.Name("dev.louisdeng.tokentrace.exportReportRequested")
 }
 
 @MainActor
@@ -13,7 +18,7 @@ enum MainMenuBuilder {
         let mainMenu = NSMenu()
 
         mainMenu.addItem(withSubmenu: buildApplicationMenu(target: target))
-        mainMenu.addItem(withSubmenu: buildFileMenu())
+        mainMenu.addItem(withSubmenu: buildFileMenu(target: target))
         mainMenu.addItem(withSubmenu: buildEditMenu())
         mainMenu.addItem(withSubmenu: buildViewMenu(target: target))
 
@@ -86,8 +91,19 @@ enum MainMenuBuilder {
 
     // MARK: - File
 
-    private static func buildFileMenu() -> NSMenu {
+    private static func buildFileMenu(target: AppDelegate) -> NSMenu {
         let menu = NSMenu(title: "File")
+
+        let exportItem = NSMenuItem(
+            title: "Export Report…",
+            action: #selector(AppDelegate.exportReportAction(_:)),
+            keyEquivalent: "e"
+        )
+        exportItem.target = target
+        menu.addItem(exportItem)
+
+        menu.addItem(.separator())
+
         menu.addItem(withTitle: "Close",
                      action: #selector(NSWindow.performClose(_:)),
                      keyEquivalent: "w")

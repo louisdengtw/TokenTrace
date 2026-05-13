@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<style>
+  /* ============================================================
+     Editorial palette — warm cream paper, ink that breathes.
+     Inks deliberately not pure black; rules at 13 % contrast so
+     they read as printed lines, not screen dividers.
+     ============================================================ */
+  :root {
+    --paper:       #ffffff;
+    --paper-tint:  rgba(28,24,18,0.025);
+    --ink:         #1a1612;
+    --ink-mid:     #5a544c;
+    --ink-soft:    #8c857c;
+    --ink-faint:   #b5ae9f;
+    --rule:        rgba(28,24,18,0.14);
+    --rule-soft:   rgba(28,24,18,0.07);
+    --tooltip-bg:  rgba(255,255,255,0.97);
+
+    --serif:        "Iowan Old Style", "Source Serif Pro", Charter, Georgia, Cambria, "Times New Roman", serif;
+    --serif-italic: var(--serif);
+    --mono:         ui-monospace, "SF Mono", "Berkeley Mono", Menlo, "Roboto Mono", monospace;
+  }
+
+  /* Report is single-mode (white paper). Dark mode is intentionally not
+     handled — the artifact is meant to be printed, attached to documents,
+     or embedded in writeups where a stable light surface matters more
+     than matching the viewer's system theme. */
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 15.5px;
+    line-height: 1.55;
+    font-feature-settings: "kern" 1, "liga" 1, "lnum" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection { background: rgba(0,114,178,0.20); }
+
+  .report {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 72px 56px 56px;
+  }
+
+  /* ============================================================
+     Masthead
+     ============================================================ */
+  .masthead {
+    margin-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 28px;
+  }
+  .eyebrow .sep { color: var(--ink-faint); padding: 0 0.4em; }
+
+  .title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    margin: 0 0 16px;
+    color: var(--ink);
+  }
+
+  .date-range {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-mid);
+    letter-spacing: 0.005em;
+  }
+  .date-range time { font-variant-numeric: lining-nums tabular-nums; font-style: normal; }
+  .date-range .sep { padding: 0 0.4em; color: var(--ink-faint); font-style: normal; }
+  .date-range .duration { font-variant-numeric: lining-nums; font-style: normal; }
+
+  /* ============================================================
+     Rules — hairlines like a print rule
+     ============================================================ */
+  hr.rule {
+    border: 0;
+    height: 1px;
+    background: var(--rule);
+    margin: 36px 0;
+  }
+
+  /* ============================================================
+     Section labels — small caps mono eyebrows over content blocks
+     ============================================================ */
+  h2.section-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 22px;
+  }
+
+  /* ============================================================
+     Summary — a typographic table, not a card grid.
+     ============================================================ */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .summary-table thead th {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-align: right;
+    padding: 4px 0 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .summary-table thead th:first-child {
+    text-align: left;
+  }
+  .summary-table tbody td {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    text-align: right;
+    font-size: 19px;
+    font-weight: 400;
+    color: var(--ink);
+  }
+  .summary-table tbody td:first-child {
+    text-align: left;
+    font-size: 16px;
+    font-family: var(--serif);
+  }
+  .summary-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .summary-table .bucket-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .summary-table .swatch {
+    display: inline-block;
+    width: 2px;
+    height: 13px;
+    transform: translateY(2px);
+    border-radius: 1px;
+  }
+  .summary-table .empty {
+    color: var(--ink-faint);
+    font-style: italic;
+    font-size: 14px;
+    text-align: right;
+  }
+
+  /* ============================================================
+     Trends — numbered like chapters in a printed report.
+     ============================================================ */
+  .trends-list { display: block; }
+
+  .trend {
+    padding: 36px 0 40px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .trend:last-child { border-bottom: none; padding-bottom: 8px; }
+  .trend:first-of-type { padding-top: 8px; }
+
+  .trend-marker {
+    display: inline-block;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+
+  .trend-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.008em;
+    margin: 0 0 4px;
+    color: var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .trend-title .swatch {
+    width: 2px;
+    height: 14px;
+    flex: none;
+    border-radius: 1px;
+    align-self: center;
+    transform: translateY(1px);
+  }
+
+  .trend-subtitle {
+    font-style: italic;
+    color: var(--ink-mid);
+    font-size: 14.5px;
+    margin: 0 0 24px;
+    padding-left: 14px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 232px;
+  }
+
+  .chart-empty {
+    height: 232px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-faint);
+    font-style: italic;
+    font-size: 14px;
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+
+  /* ============================================================
+     Colophon — printed-imprint metadata, all monospace, faint.
+     ============================================================ */
+  .colophon {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+  .colophon dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 18px;
+    row-gap: 4px;
+  }
+  .colophon dt {
+    text-transform: uppercase;
+    letter-spacing: 0.20em;
+    color: var(--ink-faint);
+  }
+  .colophon dd {
+    margin: 0;
+    color: var(--ink-mid);
+    word-break: break-all;
+  }
+  .colophon code {
+    font-family: inherit;
+    background: none;
+    padding: 0;
+  }
+
+  /* ============================================================
+     Imprint — publisher-style signature, set apart from colophon.
+     ============================================================ */
+  .imprint {
+    margin: 22px 0 0;
+    text-align: right;
+    color: var(--ink-faint);
+  }
+  .imprint .built {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-right: 8px;
+  }
+  .imprint a {
+    color: var(--ink-mid);
+    text-decoration: none;
+  }
+  .imprint a:hover { text-decoration: underline; }
+  .imprint .name {
+    font-family: var(--serif);
+    font-size: 13px;
+    font-variant: small-caps;
+    letter-spacing: 0.10em;
+    color: var(--ink-mid);
+  }
+  .imprint .mark {
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 6px;
+    border-radius: 3px;
+    transform: translateY(-1px);
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .imprint .sep {
+    margin: 0 6px;
+    color: var(--ink-faint);
+  }
+  .imprint .url {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0;
+  }
+
+  /* ============================================================
+     Print — A4 page, no chrome, pure inks.
+     ============================================================ */
+  @media print {
+    :root {
+      --paper:       #ffffff;
+      --paper-tint:  rgba(0,0,0,0.02);
+      --ink:         #000000;
+      --ink-mid:     #2a2a2a;
+      --ink-soft:    #525252;
+      --ink-faint:   #8a8a8a;
+      --rule:        rgba(0,0,0,0.32);
+      --rule-soft:   rgba(0,0,0,0.12);
+    }
+    html, body { font-size: 11pt; }
+    .report {
+      max-width: none;
+      padding: 0;
+      margin: 0;
+    }
+    .trend {
+      page-break-inside: avoid;
+    }
+    .summary-table thead th { padding-top: 0; }
+    @page {
+      margin: 22mm 22mm 24mm;
+      size: A4;
+    }
+  }
+</style>
+<script>__CHART_JS__</script>
+</head>
+<body>
+
+<article class="report">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      Usage Report<span class="sep">·</span>TokenTrace
+    </div>
+    <h1 class="title">__TITLE__</h1>
+    <div class="date-range">
+      <time>__DATE_RANGE__</time><span class="sep">·</span><span class="duration">__DURATION_DAYS__ days</span>
+    </div>
+  </header>
+
+  <hr class="rule">
+
+  <section class="summary">
+    <h2 class="section-label">Summary</h2>
+    <div id="summary-cards"></div>
+  </section>
+
+  <hr class="rule">
+
+  <section class="trends">
+    <h2 class="section-label">Trends</h2>
+    <div id="charts" class="trends-list"></div>
+  </section>
+
+  <footer class="colophon">
+    <dl>
+      <dt>Generated</dt><dd>__GENERATED_AT__</dd>
+      <dt>Source</dt><dd><code>__DB_PATH__</code></dd>
+    </dl>
+    <p class="imprint">
+      <span class="built">Built by</span><a href="https://github.com/louisdengtw/TokenTrace"><img class="mark" src="__LOGO_DATA_URI__" alt=""><span class="name">TokenTrace</span><span class="sep">·</span><span class="url">github.com/louisdengtw/TokenTrace</span></a>
+    </p>
+  </footer>
+
+</article>
+
+<script>
+(function () {
+  const REPORT = __REPORT_JSON__;
+
+  /* ──────────────────────────────────────────────────────────────
+     Summary — typographic table (label · samples · peak · average)
+     ────────────────────────────────────────────────────────────── */
+  const cardsEl = document.getElementById('summary-cards');
+
+  const table = document.createElement('table');
+  table.className = 'summary-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th scope="col">Window</th>
+        <th scope="col">Samples</th>
+        <th scope="col">Peak</th>
+        <th scope="col">Average</th>
+      </tr>
+    </thead>
+  `;
+  const tbody = document.createElement('tbody');
+  for (const b of REPORT.buckets) {
+    const tr = document.createElement('tr');
+    const labelCell = `
+      <td>
+        <span class="bucket-label">
+          <span class="swatch" style="background:${b.color}"></span>
+          ${b.label}
+        </span>
+      </td>
+    `;
+    if (!b.stats) {
+      tr.innerHTML = labelCell + `<td colspan="3" class="empty">— no samples in range</td>`;
+    } else {
+      tr.innerHTML = labelCell + `
+        <td>${b.stats.n.toLocaleString()}</td>
+        <td>${b.stats.peak}%</td>
+        <td>${b.stats.avg}%</td>
+      `;
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  cardsEl.appendChild(table);
+
+  /* ──────────────────────────────────────────────────────────────
+     Trends — one section per bucket, № I / № II / …, no card chrome
+     ────────────────────────────────────────────────────────────── */
+  const roman = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+
+  // Reset markers: dashed verticals at bucket-window boundaries.
+  const resetMarkers = {
+    id: 'resetMarkers',
+    afterDatasetsDraw(chart, _args, opts) {
+      const events = opts.events || [];
+      if (!events.length) return;
+      const { ctx, chartArea, scales } = chart;
+      const cs = getComputedStyle(document.documentElement);
+      ctx.save();
+      ctx.strokeStyle = cs.getPropertyValue('--rule').trim() || 'rgba(0,0,0,0.14)';
+      ctx.setLineDash([2, 4]);
+      ctx.lineWidth = 1;
+      for (const ts of events) {
+        const x = scales.x.getPixelForValue(ts);
+        if (x < chartArea.left || x > chartArea.right) continue;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+  Chart.register(resetMarkers);
+
+  const css = getComputedStyle(document.documentElement);
+  const tokenInkMid    = css.getPropertyValue('--ink-mid').trim()    || '#5a544c';
+  const tokenInkSoft   = css.getPropertyValue('--ink-soft').trim()   || '#8c857c';
+  const tokenInkFaint  = css.getPropertyValue('--ink-faint').trim()  || '#b5ae9f';
+  const tokenRule      = css.getPropertyValue('--rule').trim()       || 'rgba(0,0,0,0.14)';
+  const tokenRuleSoft  = css.getPropertyValue('--rule-soft').trim()  || 'rgba(0,0,0,0.07)';
+  const tokenPaper     = css.getPropertyValue('--paper').trim()      || '#fbf9f3';
+  const tokenTooltipBg = css.getPropertyValue('--tooltip-bg').trim() || tokenPaper;
+
+  const fmtTick = (val) => {
+    const d = new Date(val);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric' });
+  };
+  const fmtTooltipTitle = (items) => {
+    const d = new Date(items[0].parsed.x);
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const chartsEl = document.getElementById('charts');
+
+  REPORT.buckets.forEach((b, i) => {
+    const trend = document.createElement('article');
+    trend.className = 'trend';
+    trend.innerHTML = `
+      <div class="trend-marker">№ ${roman[i] || (i + 1)}</div>
+      <h3 class="trend-title">
+        <span class="swatch" style="background:${b.color}"></span>
+        <span>${b.label}</span>
+      </h3>
+      <p class="trend-subtitle">${b.subtitle || 'Utilization over time'}</p>
+      <div class="chart-wrap"><canvas></canvas></div>
+    `;
+    chartsEl.appendChild(trend);
+
+    if (!b.samples || b.samples.length === 0) {
+      const wrap = trend.querySelector('.chart-wrap');
+      wrap.outerHTML = '<div class="chart-empty">No samples in the selected range.</div>';
+      return;
+    }
+
+    const ctx = trend.querySelector('canvas').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: b.label,
+          data: b.samples.map(([x, y]) => ({ x, y })),
+          borderColor: b.color,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.16,
+          borderWidth: 1.35,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: b.color,
+          pointHoverBorderColor: tokenPaper,
+          pointHoverBorderWidth: 1.5,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        parsing: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: tokenTooltipBg,
+            titleColor: tokenInkMid,
+            bodyColor: b.color,
+            borderColor: tokenRule,
+            borderWidth: 1,
+            cornerRadius: 2,
+            displayColors: false,
+            padding: { top: 8, right: 12, bottom: 8, left: 12 },
+            titleFont: {
+              family: '"Iowan Old Style", Charter, Georgia, serif',
+              size: 11.5,
+              weight: 'normal',
+              style: 'italic'
+            },
+            bodyFont: {
+              family: 'ui-monospace, "SF Mono", Menlo, monospace',
+              size: 12,
+              weight: 'normal'
+            },
+            titleMarginBottom: 4,
+            callbacks: {
+              title: fmtTooltipTitle,
+              label: (item) => `${item.parsed.y.toFixed(1)}%`
+            }
+          },
+          resetMarkers: { events: b.resets || [] }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: REPORT.rangeStart,
+            max: REPORT.rangeEnd,
+            ticks: {
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 7,
+              color: tokenInkSoft,
+              font: { family: 'ui-monospace, "SF Mono", Menlo, monospace', size: 10 },
+              padding: 8,
+              callback: fmtTick
+            },
+            grid: { display: false },
+            border: { color: tokenRule, width: 1 }
+          },
+          y: {
+            min: 0, max: 100,
+            ticks: {
+              stepSize: 25,
+              color: tokenInkSoft,
+              font: { family: 'ui-monospace, "SF Mono", Menlo, monospace', size: 10 },
+              padding: 10,
+              callback: (v) => v + '%'
+            },
+            grid: {
+              color: tokenRuleSoft,
+              drawTicks: false,
+              lineWidth: 0.5,
+            },
+            border: { display: false }
+          }
+        },
+        layout: {
+          padding: { top: 4, right: 4, bottom: 0, left: 0 }
+        }
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

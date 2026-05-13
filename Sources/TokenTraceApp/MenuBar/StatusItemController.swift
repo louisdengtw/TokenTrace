@@ -10,7 +10,10 @@ final class StatusItemController: NSObject {
     private let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "StatusItem")
 
     private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
+    private var panel: MenuBarPanel?
+    private var hostingController: NSHostingController<PopoverView>?
+    private var globalClickMonitor: Any?
+    private var localKeyMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
 
     init(usageManager: UsageManager, openMainWindow: @escaping (MainTab) -> Void) {
@@ -30,7 +33,7 @@ final class StatusItemController: NSObject {
             button.imagePosition = .imageOnly
         }
 
-        installPopover()
+        installPanel()
         renderIcon()
 
         usageManager.$latestSample
@@ -52,17 +55,79 @@ final class StatusItemController: NSObject {
     }
 
     func togglePopover() {
-        guard let button = statusItem?.button else { return }
-        guard let popover else { return }
-        if popover.isShown {
-            popover.performClose(nil)
+        guard let panel else { return }
+        if panel.isVisible {
+            hidePanel()
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            if #available(macOS 14.0, *) {
-                NSApp.activate()
-            } else {
-                NSApp.activate(ignoringOtherApps: true)
+            showPanel()
+        }
+    }
+
+    private func showPanel() {
+        guard let button = statusItem?.button else { return }
+        guard let buttonWindow = button.window else { return }
+        guard let panel else { return }
+
+        // Resize panel to the SwiftUI content's intrinsic size (popover lays
+        // out vertically with no Spacer, so this captures the true height).
+        hostingController?.view.layoutSubtreeIfNeeded()
+        let fittingSize = hostingController?.view.fittingSize ?? NSSize(width: 320, height: 240)
+        let panelSize = NSSize(
+            width: max(fittingSize.width, 320),
+            height: max(fittingSize.height, 200)
+        )
+
+        // Anchor below the status item button, on its screen. The small
+        // vertical gap mirrors macOS's own menu-extra panels.
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let buttonFrameOnScreen = buttonWindow.convertToScreen(buttonFrameInWindow)
+        let originX = buttonFrameOnScreen.midX - panelSize.width / 2
+        let originY = buttonFrameOnScreen.minY - panelSize.height - 5
+        panel.setContentSize(panelSize)
+        panel.setFrameOrigin(NSPoint(x: originX, y: originY))
+
+        panel.makeKeyAndOrderFront(nil)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        installDismissMonitors()
+    }
+
+    private func hidePanel() {
+        panel?.orderOut(nil)
+        removeDismissMonitors()
+    }
+
+    /// Outside-click and ESC-key handling. Global monitor catches clicks
+    /// outside the panel (other apps, desktop, menu bar); local monitor
+    /// handles ESC inside the panel itself.
+    private func installDismissMonitors() {
+        removeDismissMonitors()
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in self?.hidePanel() }
+        }
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {  // ESC
+                Task { @MainActor in self?.hidePanel() }
+                return nil
             }
+            return event
+        }
+    }
+
+    private func removeDismissMonitors() {
+        if let token = globalClickMonitor {
+            NSEvent.removeMonitor(token)
+            globalClickMonitor = nil
+        }
+        if let token = localKeyMonitor {
+            NSEvent.removeMonitor(token)
+            localKeyMonitor = nil
         }
     }
 
@@ -108,22 +173,25 @@ final class StatusItemController: NSObject {
         }
     }
 
-    // MARK: - Popover
+    // MARK: - Panel
 
-    private func installPopover() {
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 320, height: 280)
-        popover.contentViewController = NSHostingController(
+    private func installPanel() {
+        let hosting = NSHostingController(
             rootView: PopoverView(
                 usageManager: usageManager,
                 openMainWindow: { [weak self] tab in
                     self?.openMainWindow(tab)
-                    self?.popover?.performClose(nil)
+                    self?.hidePanel()
                 }
             )
         )
-        self.popover = popover
+        // Intrinsic-content sizing: the hosting controller asks the SwiftUI
+        // view for its preferred size on each layout. macOS 13+ API.
+        if #available(macOS 13.0, *) {
+            hosting.sizingOptions = .intrinsicContentSize
+        }
+        self.hostingController = hosting
+        self.panel = MenuBarPanel(contentView: hosting.view)
     }
 
     // MARK: - Icon rendering
