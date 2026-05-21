@@ -28,7 +28,7 @@ Progress: `openspec status --change rewrite-as-claudeusage`.
 ## Salvage map (only one file is genuinely upstream-derived)
 
 `Sources/TokenTraceApp/Services/ClaudeAPI.swift` carries logic adapted from
-`~/worksapce/ClaudeUsageBar/app/ClaudeUsageBar.swift`:
+`~/workspace/ClaudeUsageBar/app/ClaudeUsageBar.swift`:
 
 | What | Approx upstream lines | Notes |
 |---|---|---|
