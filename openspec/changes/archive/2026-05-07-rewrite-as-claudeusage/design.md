@@ -209,7 +209,7 @@ It does NOT own UI state like "is settings panel showing." That stays in views.
 
 ## Migration Plan
 
-1. Develop the new app to working v1 in `~/worksapce/TokenTrace/` (new directory, new repo).
+1. Develop the new app to working v1 in `~/workspace/TokenTrace/` (new directory, new repo).
 2. Install both apps in parallel: keep `dev.louisdeng.claudeusagebar` (old fork) running while the new `dev.louisdeng.tokentrace` is built and tested.
 3. When confident, copy the session cookie from the old Keychain entry into the new app (one-time manual step via the new Settings UI).
 4. Quit the old app; remove from `/Applications/`. Optionally clean up old Keychain entries via Keychain Access.

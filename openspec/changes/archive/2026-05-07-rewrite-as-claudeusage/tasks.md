@@ -1,6 +1,6 @@
 ## 1. Repository and Build System Setup
 
-- [x] 1.1 Create new local directory `~/worksapce/TokenTrace/` and initialize as a git repository.
+- [x] 1.1 Create new local directory `~/workspace/TokenTrace/` and initialize as a git repository.
 - [x] 1.2 Create `Package.swift` declaring an executable target `TokenTraceApp`, platforms `[.macOS(.v13)]`, no external dependencies.
 - [x] 1.3 Scaffold the `Sources/TokenTraceApp/` directory tree per the layout in `design.md` (App / MenuBar / MainWindow / Services / Persistence / Models, plus `Tests/`).
 - [x] 1.4 Copy and adapt `Resources/Info.plist` from the old repo, setting `CFBundleIdentifier = dev.louisdeng.tokentrace`, `LSMinimumSystemVersion = 13.0`, `LSUIElement = true`, `CFBundleName = TokenTrace`.
