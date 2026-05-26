@@ -15,8 +15,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
-APP_NAME="TokenTrace"
-BUNDLE_ID="dev.louisdeng.tokentrace"
+APP_NAME="${APP_NAME:-TokenTrace}"
+BUNDLE_ID="${BUNDLE_ID:-dev.louisdeng.tokentrace}"
 EXECUTABLE_TARGET="TokenTraceApp"
 SIGN_CERT_HASH="F690B9DA81D392695487D52D35F6B37E7A362495"
 
@@ -47,6 +47,15 @@ cp "${UNIVERSAL_BIN}" "${MACOS_DIR}/${APP_NAME}"
 chmod 755 "${MACOS_DIR}/${APP_NAME}"
 
 cp "${REPO_ROOT}/Resources/Info.plist" "${CONTENTS}/Info.plist"
+
+# Identity keys are env-overridable so a side-by-side dev build is possible
+# (no-op when APP_NAME/BUNDLE_ID are at their defaults).
+plutil -replace CFBundleIdentifier  -string "${BUNDLE_ID}" "${CONTENTS}/Info.plist"
+plutil -replace CFBundleName        -string "${APP_NAME}"  "${CONTENTS}/Info.plist"
+plutil -replace CFBundleDisplayName -string "${APP_NAME}"  "${CONTENTS}/Info.plist"
+plutil -replace CFBundleExecutable  -string "${APP_NAME}"  "${CONTENTS}/Info.plist"
+plutil -replace CFBundleIconFile    -string "${APP_NAME}"  "${CONTENTS}/Info.plist"
+
 if [ -f "${REPO_ROOT}/Resources/${APP_NAME}.icns" ]; then
     cp "${REPO_ROOT}/Resources/${APP_NAME}.icns" "${RES_DIR}/${APP_NAME}.icns"
 fi

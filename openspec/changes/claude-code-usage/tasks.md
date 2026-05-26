@@ -1,8 +1,11 @@
-## 1. Platform floor bump
+## 1. Platform and build infrastructure
 
 - [ ] 1.1 Update `Package.swift` `platforms` from `.macOS(.v13)` to `.macOS(.v14)`
 - [ ] 1.2 Update `CLAUDE.md`'s "Min macOS" line and the SwiftUI Charts note
 - [ ] 1.3 Build clean to confirm nothing else referenced 13-only fallback semantics; do NOT remove the existing `chartXSelectionIfAvailable` shim (out of scope for this change)
+- [x] 1.4 In `tools/build-app.sh`, make `APP_NAME` and `BUNDLE_ID` env-overridable (default `TokenTrace` / `dev.louisdeng.tokentrace`); `plutil -replace` the identity keys (CFBundleIdentifier, CFBundleName, CFBundleDisplayName, CFBundleExecutable, CFBundleIconFile) so non-default values produce a separately-installable .app
+- [x] 1.5 In `Makefile`, add `dev` / `dev-install` / `dev-run` targets exporting `APP_NAME=TokenTraceDev BUNDLE_ID=dev.louisdeng.tokentrace.dev` and acting on `build/TokenTraceDev.app` / `/Applications/TokenTraceDev.app`; `dev-run` `pkill` targets `TokenTraceDev` only, not `TokenTrace`
+- [ ] 1.6 Smoke: `make build` produces `TokenTrace.app` unchanged; `make dev-run` produces and launches `TokenTraceDev.app` alongside production
 
 ## 2. UI prototype with stub data
 
