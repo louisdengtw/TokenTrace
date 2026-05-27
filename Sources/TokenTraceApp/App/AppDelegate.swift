@@ -19,11 +19,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
 
         let store: UsageStore
+        let ccStore: CCUsageStore
         do {
             let url = try UsageStore.defaultDatabaseURL()
             store = try UsageStore(url: url)
+            // Claude Code data lives in the same sqlite file; both stores open
+            // their own connection on it. DDL is idempotent (CREATE IF NOT
+            // EXISTS) so the order of init is fine.
+            ccStore = try CCUsageStore(url: url)
         } catch {
-            log.error("UsageStore init failed: \(String(describing: error), privacy: .public)")
+            log.error("Store init failed: \(String(describing: error), privacy: .public)")
             // Surface a fatal-error dialog and bail; without persistence we can't run the dashboard.
             let alert = NSAlert()
             alert.messageText = "Could not open usage database"
@@ -35,7 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let manager = UsageManager(store: store)
+        let ccIngester = CCUsageIngester(store: ccStore)
+        let manager = UsageManager(store: store, ccStore: ccStore, ccIngester: ccIngester)
         self.usageManager = manager
 
         self.notificationCoordinator = NotificationCoordinator()

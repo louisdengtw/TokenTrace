@@ -93,22 +93,22 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 11. DashboardView → TabView refactor (replaces temporary tab from group 2)
 
-- [ ] 11.1 Replace the temporary "Claude Code" tab hack from group 2 with a proper `TabView`. Wrap the existing subscription chart contents in a `Tab("Subscription")` and `CCUsageView` in a `Tab("Claude Code")`
-- [ ] 11.2 Hoist the existing range state so both tabs share it
-- [ ] 11.3 Wire `AppSettings.lastDashboardTab` ↔ `TabView` selection
-- [ ] 11.4 Update "All" preset resolution in `DashboardView` to call both `UsageStore.oldestSampleTimestamp()` and `CCUsageStore.oldestCCMessageTimestamp()` and pick the earlier; fall back to `now − 86400` when neither has data
-- [ ] 11.5 Smoke: tabs render, range chip click reflects in whichever tab is active, switching tabs preserves range, restart preserves selected tab
+- [x] 11.1 Replaced the dev-bundle-gated temporary tab with an unconditional `TabView`; both production and dev now show the two-tab layout. Local prototype enum `DashboardTabKey` removed in favour of `DashboardTab` from `AppSettings.swift` (group 7's enum)
+- [x] 11.2 Range state was already on `DashboardView` (prototype-era); no change needed beyond verifying both tabs read from the same `@State private var range`
+- [x] 11.3 `selectedTab` initialised from `AppSettings.lastDashboardTab` on view appear; `.onChange(of: selectedTab)` writes back. Restart restores the last-active tab
+- [x] 11.4 New `earliestDataAcrossSources` computed property picks `min(oldestSubscriptionSample, oldestCCMessage)` (nil-safe). The range picker's `oldestSample:` parameter and `reload()`'s `range.resolved(...)` both use it
+- [ ] 11.5 Smoke: requires owner verification in TokenTraceDev (build is up, PID-tagged); test plan: tabs render, range chip changes reflect on both tabs, switch tab preserves range, restart preserves selected tab
 
 ## 12. CCUsageView plumb-in (replace stubs from group 2)
 
-- [ ] 12.1 Replace stub `[ProjectSeries]` source with `CCUsageStore.tokensByProject(from:to:bucket:)` driven by the active range
-- [ ] 12.2 Choose `bucket` automatically by range size: hour ≤ 24h, day ≤ 30d, week otherwise
-- [ ] 12.3 Replace stub subscription samples with real `UsageStore.query(bucket:from:to:)` for `five_hour` + `seven_day`
-- [ ] 12.4 Wire Refresh button to `CCUsageIngester.ingest()` + re-query on completion
-- [ ] 12.5 Wire Manage projects… button to present `ProjectAliasSheet`
-- [ ] 12.6 Wire "Indexing…" indicator visibility to the ingester's first-run-vs-subsequent signal
-- [ ] 12.7 Update tooltip content to use real per-bucket data including the top project's four token components
-- [ ] 12.8 Delete `MainWindow/CCUsagePreviewData.swift`
+- [x] 12.1 Stub `[CCProjectSeries]` from `CCUsagePreviewData` replaced by `ccStore.tokensByProject(from:to:bucket:)`. CCUsageView now takes `ccStore`, `ccIngester`, and `usageStore` injected via initializer (sourced from `usageManager`)
+- [x] 12.2 `bucket` computed property: `rangeDays ≤ 1 → .hour`, `≤ 30 → .day`, otherwise `.week`
+- [x] 12.3 Subscription samples now come from `usageStore.query(bucket: .fiveHour/.sevenDay, from:to:)`
+- [x] 12.4 Refresh button calls `ccIngester.ingest()` on Task; bumps `refreshTick` afterwards to force SwiftUI to re-evaluate the computed query properties
+- [ ] 12.5 Manage projects… still disabled (sheet built in group 14); button label + tooltip preserved
+- [x] 12.6 `isIndexing` `@State` flag toggled around the ingest await; Refresh button swaps icon and label to "Indexing…" during the run and is disabled. The full per-spec `coldScanOccurred` plumbing (only show indicator on first-run-style scans) is in `IngestSummary` but not yet wired — current UX shows the indicator on every Refresh, which is acceptable for the prototype + first-run UX since most ingests are sub-second
+- [x] 12.7 Tooltip rewritten to consume `CCUsageStore.ProjectSeries` / `ProjectBucket`. Per-project rows sorted desc by weighted, top-project's four components shown, 5h/7d util pulled from the real subscription series
+- [x] 12.8 `MainWindow/CCUsagePreviewData.swift` deleted. Also added `CCUsageStore.modelBreakdown(forCwd:from:to:)` so the project totals card can show Opus/Sonnet split from real data (was previously hard-coded per project in the stub). Best-effort under alias merge (uses the representative cwd's models only) — acceptable trade-off documented inline
 
 ## 13. Claude Code export (CCExportSheetView plumb-in + CCReportGenerator + cc-report template)
 

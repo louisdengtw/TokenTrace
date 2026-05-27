@@ -3,13 +3,21 @@ import SwiftUI
 
 struct CCUsageView: View {
     let domain: ClosedRange<Date>
+    let ccStore: CCUsageStore
+    let ccIngester: CCUsageIngester
+    let usageStore: UsageStore
 
     @Environment(\.colorScheme) private var scheme
     @State private var selectedDate: Date?
+    @State private var isIndexing: Bool = false
+    /// Bumped after an ingest finishes; the computed `projects` / `fiveHour`
+    /// / `sevenDay` properties read it so that SwiftUI re-evaluates them on
+    /// the next body render. Without this nudge, `@State`-free computeds
+    /// would not trigger a refresh when the underlying DB changes.
+    @State private var refreshTick: Int = 0
 
-    // Sub-band components within each project's stacked area, in stacking
-    // order (input on the bottom, cache_read on top — matches the Mix bar in
-    // the project totals card).
+    // MARK: - Sub-band components (matches Mix bar in totals card)
+
     private enum Component: String, CaseIterable {
         case input
         case output
@@ -18,69 +26,109 @@ struct CCUsageView: View {
 
         var opacity: Double {
             switch self {
-            case .input:        return 0.95
-            case .output:       return 0.70
-            case .cacheCreate:  return 0.42
-            case .cacheRead:    return 0.18
+            case .input:       return 0.95
+            case .output:      return 0.70
+            case .cacheCreate: return 0.42
+            case .cacheRead:   return 0.18
             }
         }
     }
 
-    private func weightedValue(bucket: CCBucket, component: Component) -> Double {
-        switch component {
-        case .input:        return Double(bucket.inputTokens)         * 1.0
-        case .output:       return Double(bucket.outputTokens)        * 5.0
-        case .cacheCreate:  return Double(bucket.cacheCreationTokens) * 1.25
-        case .cacheRead:    return Double(bucket.cacheReadTokens)     * 0.1
-        }
+    private static let palette: [Color] = [
+        Color(red: 0.31, green: 0.55, blue: 0.94),  // blue
+        Color(red: 0.27, green: 0.69, blue: 0.49),  // green
+        Color(red: 0.56, green: 0.42, blue: 0.84),  // purple
+        Color(red: 0.94, green: 0.62, blue: 0.18),  // orange
+        Color(red: 0.85, green: 0.30, blue: 0.55),  // pink
+        Color(red: 0.20, green: 0.60, blue: 0.69),  // teal
+    ]
+
+    private func color(forIndex i: Int) -> Color {
+        Self.palette[i % Self.palette.count]
     }
 
-    // Series IDs in stacking order: project1 components first (bottom), then
-    // project2, etc. Stacking happens by mark order, so foregroundStyleScale's
-    // domain ordering also drives visual band ordering.
-    private var seriesDomain: [String] {
-        projects.flatMap { p in
-            Component.allCases.map { "\(p.id)|\($0.rawValue)" }
-        }
+    // MARK: - Queries (re-run when refreshTick or domain changes)
+
+    private var rangeDays: Double {
+        domain.upperBound.timeIntervalSince(domain.lowerBound) / 86400
     }
 
-    private var seriesRange: [Color] {
-        projects.flatMap { p in
-            Component.allCases.map { p.baseColor.opacity($0.opacity) }
-        }
+    /// Auto-select aggregation granularity from the active range size.
+    private var bucket: CCUsageStore.TimeBucket {
+        if rangeDays <= 1 { return .hour }
+        if rangeDays <= 30 { return .day }
+        return .week
     }
 
-    // MARK: - Stub data sourcing
-
-    private var rangeDays: Int {
-        max(1, Int(domain.upperBound.timeIntervalSince(domain.lowerBound) / 86400))
-    }
-
-    private var projects: [CCProjectSeries] {
-        CCUsagePreviewData.projects(now: domain.upperBound, days: min(rangeDays, 30))
+    private var projects: [CCUsageStore.ProjectSeries] {
+        _ = refreshTick
+        return ccStore.tokensByProject(
+            from: domain.lowerBound,
+            to: domain.upperBound,
+            bucket: bucket
+        )
     }
 
     private var fiveHour: [UsageSample] {
-        CCUsagePreviewData.subscriptionFiveHour(now: domain.upperBound, days: min(rangeDays, 30))
+        _ = refreshTick
+        return usageStore.query(bucket: .fiveHour, from: domain.lowerBound, to: domain.upperBound)
     }
 
     private var sevenDay: [UsageSample] {
-        CCUsagePreviewData.subscriptionSevenDay(now: domain.upperBound, days: min(rangeDays, 30))
+        _ = refreshTick
+        return usageStore.query(bucket: .sevenDay, from: domain.lowerBound, to: domain.upperBound)
     }
 
-    // MARK: - Aggregates
+    // MARK: - Aggregates for the totals card
+
+    private struct ProjectAggregate {
+        let cwd: String
+        let displayName: String
+        let baseColor: Color
+        let weighted: Double
+        let inputTokens: Int
+        let outputTokens: Int
+        let cacheCreationTokens: Int
+        let cacheReadTokens: Int
+        let opusRatio: Double
+    }
 
     private var aggregates: [ProjectAggregate] {
-        projects.map { p in
-            ProjectAggregate(
-                project: p,
-                weighted: p.buckets.reduce(0.0) { $0 + $1.weightedTotal },
-                inputTokens:           p.buckets.reduce(0) { $0 + $1.inputTokens },
-                outputTokens:          p.buckets.reduce(0) { $0 + $1.outputTokens },
-                cacheCreationTokens:   p.buckets.reduce(0) { $0 + $1.cacheCreationTokens },
-                cacheReadTokens:       p.buckets.reduce(0) { $0 + $1.cacheReadTokens }
+        var out: [ProjectAggregate] = []
+        for (i, p) in projects.enumerated() {
+            let totalIn  = p.buckets.reduce(0) { $0 + $1.inputTokens }
+            let totalOut = p.buckets.reduce(0) { $0 + $1.outputTokens }
+            let totalCc  = p.buckets.reduce(0) { $0 + $1.cacheCreationTokens }
+            let totalCr  = p.buckets.reduce(0) { $0 + $1.cacheReadTokens }
+            let weighted = p.buckets.reduce(0.0) { $0 + $1.weightedTotal }
+
+            // Best-effort model split. When two cwds are alias-merged into
+            // one series, this uses the representative cwd's models only;
+            // an approximation acceptable for v1 attribution.
+            let modelTotals = ccStore.modelBreakdown(
+                forCwd: p.cwd,
+                from: domain.lowerBound,
+                to: domain.upperBound
             )
-        }.sorted { $0.weighted > $1.weighted }
+            let totalModelW = modelTotals.reduce(0.0) { $0 + $1.weighted }
+            let opusW = modelTotals
+                .filter { $0.model.lowercased().contains("opus") }
+                .reduce(0.0) { $0 + $1.weighted }
+            let opusRatio = totalModelW > 0 ? opusW / totalModelW : 0
+
+            out.append(ProjectAggregate(
+                cwd: p.cwd,
+                displayName: p.displayName,
+                baseColor: color(forIndex: i),
+                weighted: weighted,
+                inputTokens: totalIn,
+                outputTokens: totalOut,
+                cacheCreationTokens: totalCc,
+                cacheReadTokens: totalCr,
+                opusRatio: opusRatio
+            ))
+        }
+        return out
     }
 
     private var grandTotalWeighted: Double {
@@ -88,10 +136,10 @@ struct CCUsageView: View {
     }
 
     private var stackedMaxPerBucket: Double {
-        guard let firstProject = projects.first else { return 1 }
-        let allTimestamps = firstProject.buckets.map(\.ts)
+        guard let first = projects.first else { return 1 }
+        let timestamps = first.buckets.map(\.ts)
         var maxStacked = 0.0
-        for ts in allTimestamps {
+        for ts in timestamps {
             let stacked = projects.reduce(0.0) { acc, p in
                 acc + (p.buckets.first { $0.ts == ts }?.weightedTotal ?? 0)
             }
@@ -122,28 +170,47 @@ struct CCUsageView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .tracking(-0.06)
             Spacer()
-            Button { } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 10, weight: .semibold))
-                    Text("Refresh")
-                }
-                .fixedSize()
-            }
-            .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
-            .disabled(true)
-            .help("Re-scan ~/.claude/projects/ (stub — wired in claude-code-usage group 12)")
-
+            refreshButton
             Button { } label: {
                 Text("Manage projects…").fixedSize()
             }
             .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
             .disabled(true)
-            .help("Set per-project display aliases (stub — sheet built in group 13)")
+            .help("Set per-project display aliases (sheet built in claude-code-usage group 14)")
 
             Image(systemName: "info.circle")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .help("\"Weighted token volume\" is a relative attribution proxy derived from Anthropic API pricing ratios (input ×1, output ×5, cache_create ×1.25, cache_read ×0.1). It is NOT a direct measure of subscription quota burn; the two Y axes are not on the same scale by construction.")
+        }
+    }
+
+    private var refreshButton: some View {
+        Button {
+            Task { await runIngest() }
+        } label: {
+            HStack(spacing: 5) {
+                if isIndexing {
+                    ProgressView().controlSize(.mini).scaleEffect(0.6, anchor: .center)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(isIndexing ? "Indexing…" : "Refresh")
+            }
+            .fixedSize()
+        }
+        .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
+        .disabled(isIndexing)
+        .help("Re-scan ~/.claude/projects/")
+    }
+
+    private func runIngest() async {
+        await MainActor.run { isIndexing = true }
+        _ = await ccIngester.ingest()
+        await MainActor.run {
+            isIndexing = false
+            refreshTick &+= 1
         }
     }
 
@@ -166,7 +233,7 @@ struct CCUsageView: View {
     private var topProjectLabel: String {
         guard let top = aggregates.first, grandTotalWeighted > 0 else { return "—" }
         let pct = Int((top.weighted / grandTotalWeighted * 100).rounded())
-        return "\(top.project.displayName) \(pct)%"
+        return "\(top.displayName) \(pct)%"
     }
 
     private var peakUtilLabel: String {
@@ -221,19 +288,49 @@ struct CCUsageView: View {
         }
     }
 
+    /// Series IDs for chart stacking order: project₀ input → output → cc → cr,
+    /// then project₁, etc. Stacking is driven by `chartForegroundStyleScale`'s
+    /// domain ordering, so the domain MUST match this order.
+    private var seriesDomain: [String] {
+        projects.flatMap { p in
+            Component.allCases.map { "\(p.cwd)|\($0.rawValue)" }
+        }
+    }
+
+    private var seriesRange: [Color] {
+        var out: [Color] = []
+        for (i, p) in projects.enumerated() {
+            let base = color(forIndex: i)
+            _ = p  // silence unused-warning in optimised builds
+            for c in Component.allCases {
+                out.append(base.opacity(c.opacity))
+            }
+        }
+        return out
+    }
+
+    private func weightedValue(bucket: CCUsageStore.ProjectBucket, component: Component) -> Double {
+        switch component {
+        case .input:       return Double(bucket.inputTokens)         * 1.0
+        case .output:      return Double(bucket.outputTokens)        * 5.0
+        case .cacheCreate: return Double(bucket.cacheCreationTokens) * 1.25
+        case .cacheRead:   return Double(bucket.cacheReadTokens)     * 0.1
+        }
+    }
+
     @ViewBuilder
     private var chart: some View {
         let yMax = stackedMaxPerBucket
 
         Chart {
-            ForEach(projects) { project in
-                ForEach(project.buckets) { bucket in
+            ForEach(projects, id: \.cwd) { project in
+                ForEach(project.buckets, id: \.ts) { bkt in
                     ForEach(Component.allCases, id: \.self) { component in
                         AreaMark(
-                            x: .value("Time", bucket.ts),
-                            y: .value("Weighted tokens", weightedValue(bucket: bucket, component: component))
+                            x: .value("Time", bkt.ts),
+                            y: .value("Weighted tokens", weightedValue(bucket: bkt, component: component))
                         )
-                        .foregroundStyle(by: .value("Series", "\(project.id)|\(component.rawValue)"))
+                        .foregroundStyle(by: .value("Series", "\(project.cwd)|\(component.rawValue)"))
                         .interpolationMethod(.monotone)
                     }
                 }
@@ -265,10 +362,7 @@ struct CCUsageView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1))
             }
         }
-        .chartForegroundStyleScale(
-            domain: seriesDomain,
-            range:  seriesRange
-        )
+        .chartForegroundStyleScale(domain: seriesDomain, range: seriesRange)
         .chartYScale(domain: 0...yMax)
         .chartXScale(domain: domain)
         .chartYAxis {
@@ -307,16 +401,19 @@ struct CCUsageView: View {
         .chartOverlay { proxy in
             GeometryReader { geo in
                 if let date = selectedDate, let xOffset = proxy.position(forX: date) {
-                    tooltipOverlay(date: date, xOffset: xOffset, plotSize: geo.size, yMax: yMax)
+                    tooltipOverlay(date: date, xOffset: xOffset, plotSize: geo.size)
                 }
             }
         }
     }
 
-    private func tooltipOverlay(date: Date, xOffset: CGFloat, plotSize: CGSize, yMax: Double) -> some View {
-        let nearestPerProject: [(name: String, color: Color, weighted: Double, bucket: CCBucket?)] = projects.map { p in
-            let nearest = p.buckets.min { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }
-            return (p.displayName, p.baseColor, nearest?.weightedTotal ?? 0, nearest)
+    private func tooltipOverlay(date: Date, xOffset: CGFloat, plotSize: CGSize) -> some View {
+        let nearestPerProject: [(name: String, color: Color, weighted: Double, bucket: CCUsageStore.ProjectBucket?)] = aggregates.map { agg in
+            let series = projects.first { $0.cwd == agg.cwd }
+            let nearest = series?.buckets.min {
+                abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date))
+            }
+            return (agg.displayName, agg.baseColor, nearest?.weightedTotal ?? 0, nearest)
         }
         let ordered = nearestPerProject.sorted { $0.weighted > $1.weighted }
         let top = ordered.first?.bucket
@@ -353,10 +450,10 @@ struct CCUsageView: View {
                 Text("Top: \(ordered.first?.name ?? "") components")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.tertiary)
-                componentRow(label: "input",         tokens: top.inputTokens)
-                componentRow(label: "output",        tokens: top.outputTokens)
-                componentRow(label: "cache create",  tokens: top.cacheCreationTokens)
-                componentRow(label: "cache read",    tokens: top.cacheReadTokens)
+                componentRow(label: "input",        tokens: top.inputTokens)
+                componentRow(label: "output",       tokens: top.outputTokens)
+                componentRow(label: "cache create", tokens: top.cacheCreationTokens)
+                componentRow(label: "cache read",   tokens: top.cacheReadTokens)
             }
 
             if nearestFive != nil || nearestSeven != nil {
@@ -400,10 +497,10 @@ struct CCUsageView: View {
     private var chartLegend: some View {
         HStack(spacing: 0) {
             HStack(spacing: 14) {
-                ForEach(projects) { p in
+                ForEach(Array(aggregates.enumerated()), id: \.element.cwd) { _, agg in
                     HStack(spacing: 5) {
-                        RoundedRectangle(cornerRadius: 2).fill(p.baseColor).frame(width: 9, height: 9)
-                        Text(p.displayName).font(.system(size: 10))
+                        RoundedRectangle(cornerRadius: 2).fill(agg.baseColor).frame(width: 9, height: 9)
+                        Text(agg.displayName).font(.system(size: 10))
                     }
                 }
             }
@@ -437,7 +534,7 @@ struct CCUsageView: View {
             mixLegend
             columnHeaders
             VStack(spacing: 8) {
-                ForEach(aggregates, id: \.project.id) { agg in
+                ForEach(aggregates, id: \.cwd) { agg in
                     projectTotalRow(agg: agg, leadingWeighted: aggregates.first?.weighted ?? 1)
                 }
             }
@@ -455,10 +552,10 @@ struct CCUsageView: View {
                 .foregroundStyle(.tertiary)
                 .textCase(.uppercase)
                 .tracking(0.5)
-            mixLegendChip("input",         opacity: 0.95)
-            mixLegendChip("output",        opacity: 0.70)
-            mixLegendChip("cache_create",  opacity: 0.42)
-            mixLegendChip("cache_read",    opacity: 0.18)
+            mixLegendChip("input",        opacity: 0.95)
+            mixLegendChip("output",       opacity: 0.70)
+            mixLegendChip("cache_create", opacity: 0.42)
+            mixLegendChip("cache_read",   opacity: 0.18)
             Spacer()
             Text("share of weighted volume")
                 .font(.system(size: 9))
@@ -480,7 +577,7 @@ struct CCUsageView: View {
     private var columnHeaders: some View {
         HStack(spacing: 12) {
             columnLabel("Project").frame(width: 110, alignment: .leading)
-            Spacer()                                                          // bar takes remaining space
+            Spacer()
             columnLabel("Weighted").frame(width: 60, alignment: .trailing)
             columnLabel("%").frame(width: 32, alignment: .trailing)
             columnLabel("Mix").frame(width: 80, alignment: .center)
@@ -498,10 +595,10 @@ struct CCUsageView: View {
 
     private func projectTotalRow(agg: ProjectAggregate, leadingWeighted: Double) -> some View {
         let pct = grandTotalWeighted > 0 ? Int((agg.weighted / grandTotalWeighted * 100).rounded()) : 0
-        let opusPct = Int((agg.project.opusRatio * 100).rounded())
+        let opusPct = Int((agg.opusRatio * 100).rounded())
 
         return HStack(spacing: 12) {
-            Text(agg.project.displayName)
+            Text(agg.displayName)
                 .font(.system(size: 11))
                 .frame(width: 110, alignment: .leading)
                 .lineLimit(1)
@@ -514,7 +611,7 @@ struct CCUsageView: View {
                               ? Color.white.opacity(0.05)
                               : Color.black.opacity(0.05))
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(agg.project.baseColor.opacity(0.85))
+                        .fill(agg.baseColor.opacity(0.85))
                         .frame(width: geo.size.width * (agg.weighted / max(leadingWeighted, 1)))
                 }
             }
@@ -535,7 +632,7 @@ struct CCUsageView: View {
                 output: agg.outputTokens,
                 cacheCreation: agg.cacheCreationTokens,
                 cacheRead: agg.cacheReadTokens,
-                color: agg.project.baseColor
+                color: agg.baseColor
             )
             .frame(width: 80, height: 6)
             .help("Share of weighted volume by component (input×1 + output×5 + cache_create×1.25 + cache_read×0.1)")
@@ -584,15 +681,6 @@ struct CCUsageView: View {
 
 // MARK: - Subviews
 
-private struct ProjectAggregate {
-    let project: CCProjectSeries
-    let weighted: Double
-    let inputTokens: Int
-    let outputTokens: Int
-    let cacheCreationTokens: Int
-    let cacheReadTokens: Int
-}
-
 private struct ComponentMiniBar: View {
     let input: Int
     let output: Int
@@ -600,11 +688,8 @@ private struct ComponentMiniBar: View {
     let cacheRead: Int
     let color: Color
 
-    // Each component contributes to the *weighted* total via the pricing-ratio
-    // weights (input ×1, output ×5, cache_create ×1.25, cache_read ×0.1). The
-    // bar shows that share so it matches the headline metric of the card;
-    // raw-token ratio would be dominated by cache_read and would not reflect
-    // where the project's weighted volume actually comes from.
+    // Weighted contribution ratio — matches the chart's headline metric so
+    // the Mix bar and the band heights speak the same language.
     var body: some View {
         let wIn  = Double(input)         * 1.0
         let wOut = Double(output)        * 5.0

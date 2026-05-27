@@ -315,6 +315,40 @@ final class CCUsageStore {
         return comps.suffix(2).joined(separator: "/")
     }
 
+    // MARK: - Per-project model breakdown (used by the CC tab's totals card)
+
+    /// Per-model weighted-volume totals for a single project over `[from, to]`.
+    /// Returned tuples sum the same `(input·1 + output·5 + cache_create·1.25
+    /// + cache_read·0.1)` formula used elsewhere. Caller normalises to a
+    /// percentage if needed.
+    func modelBreakdown(forCwd cwd: String, from: Date, to: Date) -> [(model: String, weighted: Double)] {
+        let sql = """
+        SELECT model,
+               SUM( input_tokens          * 1.0
+                  + output_tokens         * 5.0
+                  + cache_creation_tokens * 1.25
+                  + cache_read_tokens     * 0.1 )
+        FROM cc_message
+        WHERE cwd = ? AND ts >= ? AND ts <= ?
+        GROUP BY model
+        ORDER BY 2 DESC;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text (stmt, 1, cwd, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(stmt, 2, sqlite3_int64(from.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, 3, sqlite3_int64(to.timeIntervalSince1970))
+
+        var out: [(model: String, weighted: Double)] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let model = String(cString: sqlite3_column_text(stmt, 0))
+            let weighted = sqlite3_column_double(stmt, 1)
+            out.append((model: model, weighted: weighted))
+        }
+        return out
+    }
+
     // MARK: - Cross-source oldest (task 8.7)
 
     func oldestCCMessageTimestamp() -> Date? {

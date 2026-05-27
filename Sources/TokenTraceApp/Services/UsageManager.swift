@@ -25,6 +25,8 @@ final class UsageManager: ObservableObject {
     var onThresholdCrossed: ((Int) -> Void)?
 
     let store: UsageStore
+    let ccStore: CCUsageStore
+    let ccIngester: CCUsageIngester
 
     private let api: ClaudeAPI
     private let pollInterval: TimeInterval
@@ -34,9 +36,17 @@ final class UsageManager: ObservableObject {
     private var notifiedThresholdsThisWindow: Set<Int> = []
     private var lastFiveHourResetsAt: Date?
 
-    init(api: ClaudeAPI = ClaudeAPI(), store: UsageStore, pollInterval: TimeInterval = 300) {
+    init(
+        api: ClaudeAPI = ClaudeAPI(),
+        store: UsageStore,
+        ccStore: CCUsageStore,
+        ccIngester: CCUsageIngester,
+        pollInterval: TimeInterval = 300
+    ) {
         self.api = api
         self.store = store
+        self.ccStore = ccStore
+        self.ccIngester = ccIngester
         self.pollInterval = pollInterval
         self.sessionCookie = CookieKeychain.read() ?? ""
     }

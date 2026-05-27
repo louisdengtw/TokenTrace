@@ -9,7 +9,7 @@ struct DashboardView: View {
     @State private var sevenDay: [UsageSample] = []
     @State private var sevenDaySonnet: [UsageSample] = []
     @State private var domain: ClosedRange<Date> = Date()...Date()
-    @State private var selectedTab: DashboardTabKey = .subscription
+    @State private var selectedTab: DashboardTab = AppSettings.lastDashboardTab
     @State private var showingCCExport: Bool = false
 
     @Environment(\.colorScheme) private var scheme
@@ -17,17 +17,18 @@ struct DashboardView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            if isDevBuild {
-                TabView(selection: $selectedTab) {
-                    subscriptionContent
-                        .tabItem { Text("Subscription") }
-                        .tag(DashboardTabKey.subscription)
-                    CCUsageView(domain: domain)
-                        .tabItem { Text("Claude Code") }
-                        .tag(DashboardTabKey.claudeCode)
-                }
-            } else {
+            TabView(selection: $selectedTab) {
                 subscriptionContent
+                    .tabItem { Text("Subscription") }
+                    .tag(DashboardTab.subscription)
+                CCUsageView(
+                    domain: domain,
+                    ccStore: usageManager.ccStore,
+                    ccIngester: usageManager.ccIngester,
+                    usageStore: usageManager.store
+                )
+                    .tabItem { Text("Claude Code") }
+                    .tag(DashboardTab.claudeCode)
             }
         }
         .onAppear { reload() }
@@ -35,26 +36,21 @@ struct DashboardView: View {
             AppSettings.dashboardRangeSelection = newValue
             reload()
         }
+        .onChange(of: selectedTab) { newValue in
+            AppSettings.lastDashboardTab = newValue
+        }
         .onChange(of: usageManager.latestSample) { _ in reload() }
         .sheet(isPresented: $showingCCExport) {
             CCExportSheetView()
         }
     }
 
-    // The TabView wrapper is gated behind the `.dev` bundle ID so the
-    // production build is untouched while the Claude Code tab is still
-    // in prototype form. Removed when claude-code-usage group 11 lands
-    // the proper TabView refactor.
-    private var isDevBuild: Bool {
-        Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true
-    }
-
     private var exportButtonLabel: String {
-        (isDevBuild && selectedTab == .claudeCode) ? "Export Claude Code…" : "Export Report…"
+        selectedTab == .claudeCode ? "Export Claude Code…" : "Export Report…"
     }
 
     private var exportButtonHelp: String {
-        (isDevBuild && selectedTab == .claudeCode)
+        selectedTab == .claudeCode
             ? "Export the visible range as a CC project-breakdown report"
             : "Export the visible range to a portable HTML or PDF report"
     }
@@ -93,7 +89,7 @@ struct DashboardView: View {
                     .tracking(-0.1)
                 Spacer()
                 Button {
-                    if isDevBuild && selectedTab == .claudeCode {
+                    if selectedTab == .claudeCode {
                         showingCCExport = true
                     } else {
                         NotificationCenter.default.post(name: .exportReportRequested, object: nil)
@@ -113,7 +109,7 @@ struct DashboardView: View {
                 Spacer()
                 RangePickerView(
                     selection: $range,
-                    oldestSample: usageManager.store.oldestTimestamp()
+                    oldestSample: earliestDataAcrossSources
                 )
                 .fixedSize()
             }
@@ -135,12 +131,27 @@ struct DashboardView: View {
         let now = Date()
         let (from, to) = range.resolved(
             now: now,
-            oldestSample: usageManager.store.oldestTimestamp()
+            oldestSample: earliestDataAcrossSources
         )
         domain = from...to
         fiveHour       = usageManager.store.query(bucket: .fiveHour,       from: from, to: to)
         sevenDay       = usageManager.store.query(bucket: .sevenDay,       from: from, to: to)
         sevenDaySonnet = usageManager.store.query(bucket: .sevenDaySonnet, from: from, to: to)
+    }
+
+    /// The earlier of the subscription `samples` oldest timestamp and the
+    /// `cc_message` oldest timestamp, so the "All" preset spans both data
+    /// sources (per usage-dashboard spec scenario "CC data predates
+    /// subscription samples" and its mirror).
+    private var earliestDataAcrossSources: Date? {
+        let oldestSub = usageManager.store.oldestTimestamp()
+        let oldestCC  = usageManager.ccStore.oldestCCMessageTimestamp()
+        switch (oldestSub, oldestCC) {
+        case (nil, nil):              return nil
+        case (let x?, nil):           return x
+        case (nil, let x?):           return x
+        case (let a?, let b?):        return min(a, b)
+        }
     }
 }
 
@@ -444,13 +455,6 @@ private func findNearest(to target: Date, in samples: [UsageSample]) -> UsageSam
     return samples.min(by: {
         abs($0.ts.timeIntervalSince(target)) < abs($1.ts.timeIntervalSince(target))
     })
-}
-
-// Identifier for the two-tab dev-build layout. Stored on a local @State today;
-// will be persisted via AppSettings.lastDashboardTab in claude-code-usage group 11.
-enum DashboardTabKey: String, Hashable {
-    case subscription
-    case claudeCode
 }
 
 private extension View {
