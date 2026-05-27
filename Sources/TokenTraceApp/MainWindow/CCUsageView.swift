@@ -22,6 +22,10 @@ struct CCUsageView: View {
     @State private var fiveHour: [UsageSample] = []
     @State private var hoveredRowCwd: String? = nil
     @State private var showingAliasSheet: Bool = false
+    /// Whether the cc_message table has ANY rows globally (not just in the
+    /// active range). Drives the first-launch onboarding card. Refreshed
+    /// in reloadCaches so it picks up new ingest results.
+    @State private var hasAnyCCData: Bool = true
 
     /// At most this many distinct projects are shown individually. Everything
     /// past it collapses into a single "Other (N)" synthesised series. Caps
@@ -106,7 +110,20 @@ struct CCUsageView: View {
         displayedProjects = groupTopN(raw, n: maxIndividualProjects)
         fiveHour = usageStore.query(bucket: .fiveHour, from: domain.lowerBound, to: domain.upperBound)
         aggregates = computeAggregates(displayedProjects)
+        hasAnyCCData = ccStore.oldestCCMessageTimestamp() != nil
     }
+
+    // MARK: - Empty-state predicates
+    //
+    // Four states drive the layout (see spec scenarios 15.1–15.4):
+    //   • !hasAnyCCData                                  → first-launch onboarding
+    //   • !hasCCInRange && !hasUtilInRange (otherwise)    → chart placeholder
+    //   • !hasCCInRange &&  hasUtilInRange                → util-only chart + hint
+    //   •  hasCCInRange && !hasUtilInRange                → normal chart (util silent)
+    //   •  hasCCInRange &&  hasUtilInRange                → normal chart
+
+    private var hasCCInRange: Bool { !displayedProjects.isEmpty }
+    private var hasUtilInRange: Bool { !fiveHour.isEmpty }
 
     /// Sort by total-weighted descending, keep first `n`, collapse the rest
     /// into one "Other (N)" synthesised series with per-bucket sums. Returns
@@ -212,7 +229,14 @@ struct CCUsageView: View {
     }
 
     private var stackedMaxPerBucket: Double {
-        guard let first = displayedProjects.first else { return 1 }
+        // When no CC data exists in range but util data does, scale the Y
+        // axis to 100 so the util-line overlay (which is multiplied by
+        // yMax/100 in chart placement) renders on a natural 0-100% scale
+        // instead of being squashed into the lower 1% of the chart by a
+        // degenerate yMax=1 fallback. Spec scenario 15.2.
+        guard let first = displayedProjects.first else {
+            return hasUtilInRange ? 100 : 1
+        }
         let timestamps = first.buckets.map(\.ts)
         var maxStacked = 0.0
         for ts in timestamps {
@@ -230,9 +254,15 @@ struct CCUsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                statsStrip
-                chartCard
-                projectTotalsCard
+                if !hasAnyCCData {
+                    onboardingCard
+                } else {
+                    statsStrip
+                    chartCard
+                    if !aggregates.isEmpty {
+                        projectTotalsCard
+                    }
+                }
             }
             .padding(18)
         }
@@ -241,6 +271,51 @@ struct CCUsageView: View {
         .sheet(isPresented: $showingAliasSheet, onDismiss: { reloadCaches() }) {
             ProjectAliasSheet(ccStore: ccStore)
         }
+    }
+
+    // MARK: - Onboarding (spec 15.4)
+    //
+    // Fires only when cc_message table is globally empty — the user has
+    // never ingested transcripts. Once a single row exists, this card is
+    // replaced by the normal layout (which has per-range empty handling
+    // of its own).
+
+    private var onboardingCard: some View {
+        VStack(spacing: 14) {
+            Spacer(minLength: 24)
+            Image(systemName: "tray")
+                .font(.system(size: 38, weight: .light))
+                .foregroundStyle(.tertiary)
+            VStack(spacing: 6) {
+                Text("No Claude Code activity yet")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("TokenTrace reads transcripts from ~/.claude/projects/.\nClick Refresh to scan for activity.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button {
+                Task { await runIngest() }
+            } label: {
+                HStack(spacing: 5) {
+                    if isIndexing {
+                        ProgressView().controlSize(.mini).scaleEffect(0.6, anchor: .center)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    Text(isIndexing ? "Scanning…" : "Refresh now")
+                        .fixedSize()
+                }
+            }
+            .buttonStyle(PillButtonStyle(variant: .prominent, size: .regular))
+            .disabled(isIndexing)
+            Spacer(minLength: 24)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .background(cardBackground)
     }
 
     // MARK: - Header
@@ -348,14 +423,60 @@ struct CCUsageView: View {
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             chartSubtitle
-            chart
-                .frame(height: 280)
-            chartLegend
+            if !hasCCInRange && !hasUtilInRange {
+                emptyChartPlaceholder      // 15.3
+            } else {
+                chart.frame(height: 280)
+            }
+            chartLegendArea
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
         .padding(.bottom, 14)
         .background(cardBackground)
+    }
+
+    /// 15.3 — neither CC nor util in range. Replaces the chart with a
+    /// muted placeholder of the same height so the surrounding layout
+    /// doesn't shift between full and empty states.
+    private var emptyChartPlaceholder: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text("No data in this range")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Text("Try widening the range, or click Refresh to pull new transcripts.")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 280)
+    }
+
+    /// Legend area branches by what's actually in the chart:
+    ///  • CC + util → full legend (project chips + util swatch)   [15.1 / normal]
+    ///  • CC only   → project chips only                          [15.1]
+    ///  • util only → util swatch + "No Claude Code activity"     [15.2]
+    ///  • neither   → blank (the placeholder above already speaks) [15.3]
+    @ViewBuilder
+    private var chartLegendArea: some View {
+        if hasCCInRange {
+            chartLegend
+        } else if hasUtilInRange {
+            HStack(spacing: 0) {
+                Text("No Claude Code activity in this range")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .italic()
+                Spacer()
+                HStack(spacing: 5) {
+                    DashedLineSwatch(color: utilLineColor)
+                    Text("5h util").font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     private var chartSubtitle: some View {
