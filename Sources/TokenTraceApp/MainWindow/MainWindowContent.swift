@@ -6,6 +6,7 @@ struct MainWindowContent: View {
     @Environment(\.colorScheme) private var scheme
     @State private var sidebarCollapsed: Bool = false
     @State private var isExporting: Bool = false
+    @State private var isExportingCC: Bool = false
     @State private var quitHovered: Bool = false
 
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
@@ -35,14 +36,22 @@ struct MainWindowContent: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportReportRequested)) { _ in
-            // Reset & open. Per spec the sheet always opens to defaults — that
-            // is enforced inside ExportSheetView, but we also toggle here in
-            // case the user spammed the menu item to re-open it.
-            isExporting = false
-            isExporting = true
+            // Tab-aware dispatch: read the latest persisted tab. The "toggle
+            // off then on" pattern resets the sheet's state on re-open per
+            // spec (sheet defaults are stateless across opens).
+            if AppSettings.lastDashboardTab == .claudeCode {
+                isExportingCC = false
+                isExportingCC = true
+            } else {
+                isExporting = false
+                isExporting = true
+            }
         }
         .sheet(isPresented: $isExporting) {
             ExportSheetView(usageManager: usageManager)
+        }
+        .sheet(isPresented: $isExportingCC) {
+            CCExportSheetView(usageManager: usageManager)
         }
     }
 

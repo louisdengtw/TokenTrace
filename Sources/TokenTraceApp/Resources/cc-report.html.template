@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<style>
+  /* Shared editorial palette with the subscription report so the two
+     artefacts read as siblings. The CC report leans wider (chart-friendly)
+     and is single-light-mode by design — see report.html.template's
+     rationale for why dark-mode is omitted. */
+  :root {
+    --paper:       #ffffff;
+    --paper-tint:  rgba(28,24,18,0.025);
+    --ink:         #1a1612;
+    --ink-mid:     #5a544c;
+    --ink-soft:    #8c857c;
+    --ink-faint:   #b5ae9f;
+    --rule:        rgba(28,24,18,0.14);
+    --rule-soft:   rgba(28,24,18,0.07);
+    --tooltip-bg:  rgba(255,255,255,0.97);
+
+    --serif: "Iowan Old Style", "Source Serif Pro", Charter, Georgia, Cambria, "Times New Roman", serif;
+    --mono:  ui-monospace, "SF Mono", "Berkeley Mono", Menlo, "Roboto Mono", monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 14.5px;
+    line-height: 1.5;
+    font-feature-settings: "kern" 1, "liga" 1, "lnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .report {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 56px 48px;
+  }
+
+  /* Masthead */
+  .masthead { margin-bottom: 24px; border-bottom: 1px solid var(--rule); padding-bottom: 16px; }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 400;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .masthead .meta {
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--ink-mid);
+    font-family: var(--mono);
+  }
+  .masthead .meta span { white-space: nowrap; }
+
+  /* Stats strip */
+  .stats {
+    display: flex;
+    gap: 28px;
+    margin: 18px 0 28px;
+    padding: 14px 18px;
+    background: var(--paper-tint);
+    border: 1px solid var(--rule-soft);
+    border-radius: 6px;
+    page-break-inside: avoid;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat .label {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+  .stat .value {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* Chart */
+  .section { margin: 0 0 28px; }
+  .section h2 {
+    font-family: var(--serif);
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 10px;
+    color: var(--ink);
+  }
+  .section .subhead {
+    font-size: 12px;
+    color: var(--ink-mid);
+    margin: 0 0 14px;
+  }
+  .chart-wrap {
+    position: relative;
+    height: 320px;
+    page-break-inside: avoid;
+  }
+
+  /* Project totals list */
+  .totals { margin: 0 0 32px; }
+  .totals h2 { font-family: var(--serif); font-size: 16px; font-weight: 500; margin: 0 0 12px; }
+  .totals .col-headers {
+    display: grid;
+    grid-template-columns: 200px 1fr 70px 50px 110px 160px;
+    gap: 14px;
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    padding: 0 0 6px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .totals .col-headers .right { text-align: right; }
+  .totals .col-headers .center { text-align: center; }
+  .totals .row {
+    display: grid;
+    grid-template-columns: 200px 1fr 70px 50px 110px 160px;
+    gap: 14px;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    page-break-inside: avoid;
+  }
+  .totals .row .name {
+    font-size: 13px;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .totals .row .bar-bg {
+    height: 8px;
+    background: var(--rule-soft);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  .totals .row .bar-fg {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 2px;
+  }
+  .totals .row .weighted,
+  .totals .row .pct {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+  }
+  .totals .row .pct { color: var(--ink-mid); }
+  .totals .row .mix {
+    height: 6px;
+    display: flex;
+    border-radius: 1.5px;
+    overflow: hidden;
+  }
+  .totals .row .mix .seg { height: 100%; }
+  .totals .row .model {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-mid);
+    text-align: right;
+  }
+
+  /* Inline mix legend chips above the totals list */
+  .mix-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+  .mix-legend .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .mix-legend .swatch {
+    width: 9px; height: 9px;
+    border-radius: 1.5px;
+    background: #1a1612;
+  }
+  .mix-legend .swatch.s1 { opacity: 0.95; }
+  .mix-legend .swatch.s2 { opacity: 0.70; }
+  .mix-legend .swatch.s3 { opacity: 0.42; }
+  .mix-legend .swatch.s4 { opacity: 0.18; }
+
+  /* Footer */
+  .footer {
+    margin-top: 32px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Print: landscape A4 so the dual-axis chart and project totals
+     columns fit without horizontal scroll. Subscription report
+     stays portrait; the CC report's wider content benefits from
+     landscape. */
+  @page { size: A4 landscape; margin: 12mm 14mm; }
+  @media print {
+    .report { padding: 0; max-width: none; }
+  }
+</style>
+<script>
+__CHART_JS__
+</script>
+</head>
+<body>
+<div class="report">
+
+  <div class="masthead">
+    <h1>__TITLE__</h1>
+    <div class="meta">
+      <span>__DATE_RANGE__</span>
+      <span>__DURATION_DAYS__ days</span>
+      <span>generated __GENERATED_AT__</span>
+    </div>
+  </div>
+
+  <div id="stats-strip" class="stats"></div>
+
+  <div class="section">
+    <h2>Weighted token volume by project</h2>
+    <div class="subhead" id="chart-subhead"></div>
+    <div class="chart-wrap"><canvas id="cc-chart"></canvas></div>
+  </div>
+
+  <div id="totals" class="totals" hidden>
+    <h2>Project totals in range</h2>
+    <div class="mix-legend">
+      <span>Mix</span>
+      <span class="chip"><span class="swatch s1"></span> input</span>
+      <span class="chip"><span class="swatch s2"></span> output</span>
+      <span class="chip"><span class="swatch s3"></span> cache_create</span>
+      <span class="chip"><span class="swatch s4"></span> cache_read</span>
+      <span style="margin-left:auto; font-transform:none;">share of weighted volume</span>
+    </div>
+    <div class="col-headers">
+      <span>Project</span>
+      <span>&nbsp;</span>
+      <span class="right">Weighted</span>
+      <span class="right">%</span>
+      <span class="center">Mix</span>
+      <span class="right">Model</span>
+    </div>
+    <div id="totals-rows"></div>
+  </div>
+
+  <div class="footer">
+    <span>Source: __DB_PATH__</span>
+    <span>TokenTrace · Claude Code report</span>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  // Server-injected payloads. All numbers pre-formatted where possible so the
+  // template stays presentational.
+  const REPORT = __SERIES_JSON__;
+  const STATS = __STATS_JSON__;
+  const TOTALS = __PROJECT_TOTALS_JSON__;
+  const INCLUDE_OVERLAY = __INCLUDE_OVERLAY__;
+  const INCLUDE_TOTALS = __INCLUDE_TOTALS__;
+
+  // ----- Stats strip
+  const statsEl = document.getElementById('stats-strip');
+  function statHTML(label, value) {
+    return '<div class="stat"><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
+  }
+  statsEl.innerHTML =
+    statHTML('Total', STATS.totalWeightedFormatted) +
+    statHTML('Top', STATS.topProjectLabel) +
+    statHTML('Peak 5h util', STATS.peakUtilLabel);
+
+  // ----- Chart
+  document.getElementById('chart-subhead').textContent =
+    INCLUDE_OVERLAY
+      ? 'Per-project weighted token volume · subscription utilisation overlaid on the right axis'
+      : 'Per-project weighted token volume';
+
+  // Build datasets from REPORT.series: each entry has {cwd, displayName, color, sourceBuckets:[{ts, in, out, cc, cr}]}.
+  // We expand each project into four sub-stacked AreaMark equivalents
+  // (input / output / cache_create / cache_read) with opacities 0.95 / 0.70 / 0.42 / 0.18.
+  const COMPONENT_OPS = [
+    {key:'inputWeighted',         alpha:0.95},
+    {key:'outputWeighted',        alpha:0.70},
+    {key:'cacheCreationWeighted', alpha:0.42},
+    {key:'cacheReadWeighted',     alpha:0.18},
+  ];
+
+  function rgba(hex, a) {
+    const h = hex.replace('#','');
+    const r = parseInt(h.slice(0,2),16);
+    const g = parseInt(h.slice(2,4),16);
+    const b = parseInt(h.slice(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
+
+  const datasets = [];
+  for (const p of REPORT.series) {
+    for (const c of COMPONENT_OPS) {
+      datasets.push({
+        label: p.displayName + ' · ' + c.key,
+        data: p.buckets.map(b => ({x: b.ts, y: b[c.key]})),
+        backgroundColor: rgba(p.color, c.alpha),
+        borderColor: 'transparent',
+        borderWidth: 0,
+        fill: true,
+        pointRadius: 0,
+        stack: 'cc',
+        yAxisID: 'y',
+        tension: 0.3,
+        cubicInterpolationMode: 'monotone',
+        legendStack: p.displayName,
+        legendColor: p.color,
+      });
+    }
+  }
+
+  if (INCLUDE_OVERLAY && REPORT.fiveHour && REPORT.fiveHour.length) {
+    datasets.push({
+      label: '5h util',
+      data: REPORT.fiveHour.map(s => ({x: s.ts, y: s.util})),
+      backgroundColor: 'transparent',
+      borderColor: 'rgba(26,22,18,0.85)',
+      borderWidth: 1.4,
+      fill: false,
+      pointRadius: 0,
+      yAxisID: 'yUtil',
+      stack: undefined,
+      tension: 0,
+      legendStack: '__util_5h__',
+      legendColor: '#1a1612',
+    });
+  }
+  if (INCLUDE_OVERLAY && REPORT.sevenDay && REPORT.sevenDay.length) {
+    datasets.push({
+      label: '7d util',
+      data: REPORT.sevenDay.map(s => ({x: s.ts, y: s.util})),
+      backgroundColor: 'transparent',
+      borderColor: 'rgba(26,22,18,0.55)',
+      borderWidth: 1.4,
+      borderDash: [4, 3],
+      fill: false,
+      pointRadius: 0,
+      yAxisID: 'yUtil',
+      stack: undefined,
+      tension: 0,
+      legendStack: '__util_7d__',
+      legendColor: 'rgba(26,22,18,0.55)',
+    });
+  }
+
+  const scales = {
+    x: {
+      type: 'time',
+      time: { tooltipFormat: 'yyyy-MM-dd HH:mm', displayFormats: { day: 'MMM d', hour: 'MMM d HH:mm', week: 'MMM d' } },
+      grid: { display: false },
+      ticks: { color: '#5a544c', font: { family: 'ui-monospace, monospace', size: 10 } },
+    },
+    y: {
+      position: 'left',
+      stacked: true,
+      beginAtZero: true,
+      grid: { color: 'rgba(28,24,18,0.05)' },
+      ticks: { color: '#5a544c', font: { family: 'ui-monospace, monospace', size: 10 } },
+    },
+  };
+  if (INCLUDE_OVERLAY) {
+    scales.yUtil = {
+      position: 'right',
+      min: 0, max: 100,
+      grid: { display: false },
+      ticks: {
+        color: '#5a544c',
+        font: { family: 'ui-monospace, monospace', size: 10 },
+        callback: function (v) { return v + '%'; },
+      },
+    };
+  }
+
+  new Chart(document.getElementById('cc-chart'), {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            // Custom: one legend entry per project (not per sub-band) +
+            // the two utilisation series. Dedup by `legendStack`.
+            generateLabels: function (chart) {
+              const seen = new Map();
+              for (const d of chart.data.datasets) {
+                if (seen.has(d.legendStack)) continue;
+                let txt;
+                if (d.legendStack === '__util_5h__') txt = '5h util';
+                else if (d.legendStack === '__util_7d__') txt = '7d util';
+                else txt = d.legendStack;
+                seen.set(d.legendStack, {
+                  text: txt,
+                  fillStyle: d.legendStack.startsWith('__util_') ? 'transparent' : d.legendColor,
+                  strokeStyle: d.legendColor,
+                  lineWidth: d.legendStack.startsWith('__util_') ? 1.4 : 0,
+                  hidden: false,
+                  font: { family: 'ui-monospace, monospace', size: 11 },
+                });
+              }
+              return Array.from(seen.values());
+            },
+            color: '#5a544c',
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: 'rgba(28,24,18,0.14)',
+          borderWidth: 1,
+          titleColor: '#1a1612',
+          bodyColor: '#1a1612',
+          padding: 8,
+        },
+      },
+      scales: scales,
+    },
+  });
+
+  // ----- Project totals (conditional)
+  if (INCLUDE_TOTALS && TOTALS && TOTALS.rows && TOTALS.rows.length) {
+    const wrap = document.getElementById('totals');
+    wrap.hidden = false;
+    const rowsEl = document.getElementById('totals-rows');
+    const leading = TOTALS.leadingWeighted || 1;
+    const html = TOTALS.rows.map(function (r) {
+      const widthPct = Math.max(0, Math.min(100, (r.weighted / leading) * 100));
+      const segs = COMPONENT_OPS.map(function (c) {
+        const pct = r.totalRaw > 0 ? (r[c.key] / r.totalRaw) * 100 : 0;
+        return '<div class="seg" style="width:' + pct + '%; background:' + rgba(r.color, c.alpha) + ';"></div>';
+      }).join('');
+      const modelCol = r.isOther
+        ? '<span class="model">—</span>'
+        : '<span class="model">Opus ' + r.opusPct + '% · Sonnet ' + (100 - r.opusPct) + '%</span>';
+      return ''
+        + '<div class="row">'
+        + '  <span class="name" title="' + r.cwd + '">' + r.displayName + '</span>'
+        + '  <span class="bar-bg"><span class="bar-fg" style="width:' + widthPct + '%; background:' + rgba(r.color, 0.85) + ';"></span></span>'
+        + '  <span class="weighted">' + r.weightedFormatted + '</span>'
+        + '  <span class="pct">' + r.pct + '%</span>'
+        + '  <span class="mix">' + segs + '</span>'
+        + '  ' + modelCol
+        + '</div>';
+    }).join('');
+    rowsEl.innerHTML = html;
+  }
+})();
+</script>
+</body>
+</html>

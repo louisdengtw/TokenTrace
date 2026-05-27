@@ -121,20 +121,20 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 13. Claude Code export (CCExportSheetView plumb-in + CCReportGenerator + cc-report template)
 
-- [ ] 13.1 Add `Resources/cc-report.html.template` with sentinel tokens (`__TITLE__`, `__DATE_RANGE__`, `__DURATION_DAYS__`, `__CHART_JS__`, `__STATS_JSON__`, `__SERIES_JSON__`, `__PROJECT_TOTALS_JSON__`, `__INCLUDE_OVERLAY__`, `__INCLUDE_TOTALS__`, `__GENERATED_AT__`, `__DB_PATH__`)
-- [ ] 13.2 Template layout: header → stats strip → stacked-area chart (with optional overlay) → project totals list (conditional) → footer, mirroring `CCUsageView`'s on-screen structure
-- [ ] 13.3 Inline CSS: typography hierarchy consistent with `report.html.template`; calm neutral palette; colour-blind-safe project colours
-- [ ] 13.4 Inline JS: parse `__SERIES_JSON__`, render Chart.js stacked area with project breakdown; if `__INCLUDE_OVERLAY__` is true, draw `five_hour` (solid) and `seven_day` (dashed) on a secondary 0–100% Y axis sharing the X axis
-- [ ] 13.5 Add `Services/CCReportGenerator.swift`: `CCReportRequest` (title, format, range, includeOverlay, includeProjectTotals), `CCReportData` (stats strip values, per-project per-bucket series, project totals with mix + Opus/Sonnet split), `generateHTML(_ request:) -> String`, `generatePDF(html:) async throws -> Data` via existing `PDFRenderer`
-- [ ] 13.6 Bucket aggregation by range size: hour ≤ 24h, day ≤ 30d, week otherwise (matches `CCUsageView`)
-- [ ] 13.7 Replace `CCExportSheetView`'s stub Save with the real flow: `NSSavePanel` with default filename `claude-code-report-{from}_to_{to}.{ext}`, allowed content type tracks format; on confirm call `CCReportGenerator`; on cancel preserve selections
-- [ ] 13.8 Disable Save in `CCExportSheetView` when `CCUsageStore.tokensByProject(...)` returns empty for the selected range; show inline "No Claude Code activity in the selected range"
-- [ ] 13.9 Replace prototype's stub Projects list in `CCExportSheetView` with real `CCUsageStore.observedCwds()` for the selected range
-- [ ] 13.10 Wire `DashboardView`'s toolbar Export button: read `selectedTab`; open `ExportSheetView` or `CCExportSheetView` accordingly; button label flips between "Export Report…" and "Export Claude Code…"
-- [ ] 13.11 Wire File menu / ⌘E (`MainMenuBuilder.swift`): same tab-aware dispatch; menu item title flips with `selectedTab`
-- [ ] 13.12 Unit tests `CCReportGeneratorTests`: fixture-driven HTML output passes sentinel substitution (all tokens replaced exactly once); JSON-encoded series round-trips; PDF render path returns non-empty data on a small fixture
-- [ ] 13.13 Page-handling for PDF: add `@page` rules to `cc-report.html.template` (landscape A4 or portrait with chart scale-to-fit), and `page-break-inside: avoid` on stats strip + project totals rows. The existing usage-export PDF path is portrait A4 single-axis lines; the new dual-axis stacked area + project totals list is qualitatively wider, so verify with a 4+ project × 30-day fixture that nothing overflows horizontally. Decide page orientation before the manual smoke
-- [ ] 13.14 Manual smoke: export from each tab, open exported HTML offline (network disconnected), confirm zero non-`file://` requests via browser Network panel; open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin and pages break sensibly
+- [x] 13.1 `Resources/cc-report.html.template` with 11 sentinel tokens
+- [x] 13.2 Layout: masthead → stats strip → main chart → project totals list → footer; mirrors `CCUsageView`
+- [x] 13.3 Inline CSS shares the editorial palette + serif/mono fonts with `report.html.template`; six-colour project palette
+- [x] 13.4 Inline JS: deserialises `__SERIES_JSON__` (each project flattened into four sub-stacked component datasets) + optional 5h/7d util lines on a secondary 0–100% Y axis; custom legend dedups per-project + util lines
+- [x] 13.5 `Services/CCReportGenerator.swift` — `CCReportRequest` (title, range, includeOverlay, includeProjectTotals), `generateHTML(_ request: now: dbPath:) -> String`, JSON wrappers for series / stats / totals. PDF flows through the existing `PDFRenderer.renderHTMLToPDF` from the sheet (no new PDF code in the generator)
+- [x] 13.6 Bucket auto-select identical to `CCUsageView`'s rule
+- [x] 13.7 `CCExportSheetView` Save: real `NSSavePanel`, default filename `claude-code-report-{from}_to_{to}.{ext}`, allowed content type tracks format, `NSWorkspace.shared.open` on success, dismiss
+- [x] 13.8 Save disabled when `tokensByProject(...)` is empty for the selected range; "No Claude Code activity in the selected range" rendered in the Projects field
+- [x] 13.9 Projects field now lists `observedCwdsInRange` — same `tokensByProject` query used by the report, so the list mirrors what the export will contain (already alias-merged + worktree-folded)
+- [x] 13.10 Toolbar Export button always posts `.exportReportRequested`. Decision was simpler than per-tab logic in the view — the dispatch lives in MainWindowContent based on `AppSettings.lastDashboardTab`, so the toolbar button reads identically on either tab
+- [x] 13.11 `MainWindowContent` reads `AppSettings.lastDashboardTab` on receipt of `.exportReportRequested` and presents `ExportSheetView` or `CCExportSheetView` accordingly. Single notification name, single source of truth for which tab → which sheet. File-menu ⌘E inherits this for free
+- [x] 13.12 `CCReportGeneratorTests`: 9 cases — all-sentinels-substituted, HTML-escape on title (XSS guard), include-overlay flag injected as a JS boolean, include-totals flag injected as a JS boolean, series JSON contains the right per-bucket weighted values + depth-1 displayName, empty range still produces valid HTML with `series:[]` + "—" top label, top-N grouping emits an "Other (N)" synthesised row with `isOther:true`, stats top label matches depth-1 synthesis, no sentinel leaks back through the substituted Chart.js or JSON payloads
+- [x] 13.13 Template uses `@page { size: A4 landscape; margin: 12mm 14mm; }` and `page-break-inside: avoid` on the stats strip, the chart wrap, and each totals row. Landscape chosen over portrait scale-to-fit because the project totals row is wide (6 columns including the 110px name + ~160px model split text); landscape gives the chart breathing room too. Visual smoke at 4+ projects × 30 days happens in 13.14
+- [ ] 13.14 Manual smoke (owner): export from each tab, open HTML offline (network panel zero non-`file://` requests), open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin and pages break sensibly
 
 ## 14. ProjectAliasSheet
 

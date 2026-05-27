@@ -10,7 +10,6 @@ struct DashboardView: View {
     @State private var sevenDaySonnet: [UsageSample] = []
     @State private var domain: ClosedRange<Date> = Date()...Date()
     @State private var selectedTab: DashboardTab = AppSettings.lastDashboardTab
-    @State private var showingCCExport: Bool = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -40,9 +39,6 @@ struct DashboardView: View {
             AppSettings.lastDashboardTab = newValue
         }
         .onChange(of: usageManager.latestSample) { _ in reload() }
-        .sheet(isPresented: $showingCCExport) {
-            CCExportSheetView()
-        }
     }
 
     private var exportButtonLabel: String {
@@ -89,11 +85,10 @@ struct DashboardView: View {
                     .tracking(-0.1)
                 Spacer()
                 Button {
-                    if selectedTab == .claudeCode {
-                        showingCCExport = true
-                    } else {
-                        NotificationCenter.default.post(name: .exportReportRequested, object: nil)
-                    }
+                    // Both paths post the same notification; MainWindowContent
+                    // reads AppSettings.lastDashboardTab (kept in sync with
+                    // selectedTab via onChange) to dispatch to the right sheet.
+                    NotificationCenter.default.post(name: .exportReportRequested, object: nil)
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "square.and.arrow.up")
