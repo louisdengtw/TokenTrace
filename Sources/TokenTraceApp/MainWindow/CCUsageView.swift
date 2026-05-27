@@ -690,25 +690,30 @@ struct CCUsageView: View {
     }
 
     private var chartLegend: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 14) {
-                ForEach(Array(aggregates.enumerated()), id: \.element.cwd) { _, agg in
-                    HStack(spacing: 5) {
-                        RoundedRectangle(cornerRadius: 2).fill(agg.baseColor).frame(width: 9, height: 9)
-                        Text(agg.displayName)
-                            .font(.system(size: 10))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .help(rowHelpText(for: agg))
+        // Single-pass FlowLayout containing both project chips and the util
+        // swatch as legend items. Each item self-sizes; the flow wraps to
+        // new rows when the parent's proposed width runs out. Chips never
+        // truncate to meaningless stubs — at narrow widths they simply
+        // occupy more rows. The util swatch comes last so it tends to
+        // appear at the trailing end of either the only row (wide) or
+        // its own row (very narrow).
+        FlowLayout(horizontalSpacing: 14, verticalSpacing: 6) {
+            ForEach(Array(aggregates.enumerated()), id: \.element.cwd) { _, agg in
+                HStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 2).fill(agg.baseColor).frame(width: 9, height: 9)
+                    Text(agg.displayName)
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                        .fixedSize()
                 }
+                .help(rowHelpText(for: agg))
             }
-            Spacer()
             HStack(spacing: 5) {
                 DashedLineSwatch(color: utilLineColor)
                 Text("5h util").font(.system(size: 10)).foregroundStyle(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Project totals card
