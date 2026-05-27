@@ -108,7 +108,16 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [ ] 12.5 Manage projects… still disabled (sheet built in group 14); button label + tooltip preserved
 - [x] 12.6 `isIndexing` `@State` flag toggled around the ingest await; Refresh button swaps icon and label to "Indexing…" during the run and is disabled. The full per-spec `coldScanOccurred` plumbing (only show indicator on first-run-style scans) is in `IngestSummary` but not yet wired — current UX shows the indicator on every Refresh, which is acceptable for the prototype + first-run UX since most ingests are sub-second
 - [x] 12.7 Tooltip rewritten to consume `CCUsageStore.ProjectSeries` / `ProjectBucket`. Per-project rows sorted desc by weighted, top-project's four components shown, 5h/7d util pulled from the real subscription series
-- [x] 12.8 `MainWindow/CCUsagePreviewData.swift` deleted. Also added `CCUsageStore.modelBreakdown(forCwd:from:to:)` so the project totals card can show Opus/Sonnet split from real data (was previously hard-coded per project in the stub). Best-effort under alias merge (uses the representative cwd's models only) — acceptable trade-off documented inline
+- [x] 12.8 `MainWindow/CCUsagePreviewData.swift` deleted. Also added `CCUsageStore.modelBreakdown(forCwd:from:to:includeWorktrees:)` so the project totals card can show Opus/Sonnet split from real data (was previously hard-coded per project in the stub)
+
+**Polish round after first-real-data review (not in original 12.x scope):**
+
+- [x] 12.P1 **Top-N + "Other" grouping** — `displayedProjects` keeps the 8 highest-weighted projects individually and folds the rest into a single gray "Other (N)" synthesised series. Bounds chart marks, legend chips, tooltip rows, and totals-card rows alike. Picked 8 as the per-row palette length so colours don't repeat in the visible set.
+- [x] 12.P2 **Query-result caching via `@State`** — `projectsAll`, `displayedProjects`, `aggregates`, `fiveHour`, `sevenDay` cached and refreshed only on appear / range change / post-ingest. Eliminates the N+1 modelBreakdown SQL storm that hit every body re-evaluation on a populated DB.
+- [x] 12.P3 **Configurable display name depth** via `AppSettings.ccProjectNameDepth` (default 1). Default behaviour now drops "workspace/" prefix etc. Setting added to SettingsView's new "Claude Code" section.
+- [x] 12.P4 **Worktree fold** via `AppSettings.ccMergeWorktrees` (default true). `tokensByProject` folds `.worktree(s)/...` cwds into the parent; representative cwd is the parent path. `modelBreakdown` gains an `includeWorktrees: Bool` param that LIKE-sweeps parent + descendants so the Opus/Sonnet split reflects all folded sources. Toggle added to SettingsView.
+- [x] 12.P5 **Inline hover reveal** — row tooltip shows the full cwd as an in-flow line below the hovered row (pushes the next row down a few px). Replaces a failed `.help()` attempt and a broken overlay attempt; layout stays consistent.
+- [x] 12.P6 5 new `CCUsageStoreTests` cases covering depth=1/2 synthesis, worktree fold default + disabled, and alias-inheritance through fold. Suite is 87 green.
 
 ## 13. Claude Code export (CCExportSheetView plumb-in + CCReportGenerator + cc-report template)
 

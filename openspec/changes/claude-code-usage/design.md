@@ -37,7 +37,6 @@ Existing constraints (post-change):
 - Cross-machine ingest / sync.
 - Per-session or per-message drilldown. Aggregates only.
 - Reading `server_tool_use` (web_search / web_fetch counts). Captured in JSONL but ignored in v1; can be re-ingested later since data stays on disk.
-- Worktree auto-merge. Defer to the owner's planned `.worktree/` directory migration; until then alias UI is the only merge mechanism.
 - Anonymisation. Sharing limited to file export (Decision 11) — no share-sheet integration, no scheduled or emailed exports.
 
 ## Decisions
@@ -226,6 +225,18 @@ Approach:
 1. (Future scaling) If a v2 report variant emerges (e.g. range-comparison, monthly-recap), the right move is to factor out a `ReportSheetChrome` view (header + Title + Format + RangePicker + Save panel + footer) and let each variant sheet supply only its body — not to keep adding fully-independent sheets. With three variants the polymorphism penalty starts to bite.
 2. (Report-vs-screen intent) v1's CC report mirrors the on-screen Claude Code tab section-for-section. This is a deliberate v1 expedient: the user's mental model is the same between live view and exported artefact, and the same `frontend-design` pass can polish both. A future iteration can diverge — denser typography, additional aggregate sections, landscape print orientation — once practice shows the on-screen layout reads poorly on paper.
 
+### Decision 12 — Configurable label depth + worktree fold
+
+Real `~/.claude/projects/` data on the owner's machine includes ~50 distinct cwds covering worktrees (`<repo>/.worktree/<branch>`), agent worktrees (`<repo>/.worktrees/agent-<uuid>`), system tools (`/opt/...`), and the home dir itself. Showing every cwd as its own project row was both visually overwhelming and a real attribution problem (one logical project — say a repo and its worktrees — fragmenting into many low-volume rows). Two related decisions land in v1 to address it:
+
+**Label depth setting.** `AppSettings.ccProjectNameDepth` (default `1`, valid `1..2`) controls how many trailing path components are used when synthesising a project's display name. Depth 1 — the new default — drops noisy parent prefixes ("DynaRAG" instead of "workspace/DynaRAG"). Depth 2 — the old default — is available for users whose monorepo layout means the last folder name isn't unique. Exposed in the Settings sheet's new "Claude Code" section. Aliases set in the Manage projects sheet always override the synthesised label, regardless of depth.
+
+**Worktree fold.** `AppSettings.ccMergeWorktrees` (default `true`) folds cwds containing a `.worktree` or `.worktrees` segment into the parent path during aggregation. The fold happens **before** alias lookup, so an alias set on the parent is inherited by all of its worktrees automatically. The fold runs in `tokensByProject` and the matching pattern is also applied by `modelBreakdown(forCwd:includeWorktrees:)` so the Opus/Sonnet column reflects the parent + all its `.worktree(s)/...` descendants via a single SQL LIKE sweep. The representative cwd for a folded series is the *parent* path (not the first-seen worktree), so tooltips and downstream queries see the clean path.
+
+The fold is opinionated about `.worktree(s)` segment names — they're the conventions both `git worktree` users and Claude Code's agent task system actually use. A false-positive match would require a non-worktree directory literally named `.worktree` or `.worktrees`; we accept that as vanishingly rare and out-of-scope for v1.
+
+Disabling either setting (via the Settings sheet) takes effect on the next reload — typically the next range change or Refresh on the Claude Code tab.
+
 ### Decision 10 — Bump platform floor from macOS 13 to macOS 14
 
 `Package.swift`'s `platforms: [.macOS(.v13)]` becomes `.macOS(.v14)`. Rationale:
@@ -245,7 +256,8 @@ The README and build script do not need to change — `xcodebuild` already inher
 | `Services/CCUsageIngester.swift` | new | walk, checkpoint, parse, insert; called from Dashboard on appear and from a manual "Refresh" button |
 | `Models/CCWeightedVolume.swift` | new | weight constants + `weightedTotal(...)` helper |
 | `Package.swift` | modified | platforms `.macOS(.v13)` → `.macOS(.v14)` |
-| `AppSettings.swift` | modified | add `lastDashboardTab` key (last-active tab persistence) |
+| `AppSettings.swift` | modified | add `lastDashboardTab`, `ccProjectNameDepth`, and `ccMergeWorktrees` keys |
+| `MainWindow/SettingsView.swift` | modified | new "Claude Code" section: project label depth picker + worktree merge toggle (Decision 12) |
 | `Models/RangeSelection.swift` | modified | add `last90d` case, `label`, resolution |
 | `MainWindow/DashboardView.swift` | modified | wrap existing chart + new CCUsageView in a `TabView` |
 | `MainWindow/CCUsageView.swift` | new | two-chart layout, range chip reused, "Manage projects…" button |
@@ -278,7 +290,7 @@ Tests: `CCUsageIngesterTests` (fixture JSONL files in `Tests/Fixtures/cc-project
 - **Weighted-volume weights drift from real subscription burn.** Pricing-derived weights are a proxy. The chart's purpose is *attribution* ("which project consumed the most"), not absolute quota accounting. The UI caveat (Decision 6) tells the user that the CC-tab and Subscription-tab numbers are not on the same scale.
 - **uuid-payload-divergence silent loss.** 54 cases (~0.1%) of same-uuid-different-payload exist on this machine. INSERT OR IGNORE silently keeps first-seen. The divergence counter surfaces growth in this number but does not block ingest.
 - **Multiple cwd's in one session.** Possible if the user `cd`s within a `claude` session; per-line attribution handles it correctly but the synthesised "session" identity blurs.
-- **Worktree splitting until the directory migration.** Until the user moves to `.worktree/`, alias UI is the only merge tool. Documented as expected behaviour.
+- **`.worktree(s)` segment false positives.** A non-worktree directory literally named `.worktree` or `.worktrees` would be folded into its parent. Vanishingly rare on real installs (these names are git/CC conventions) but possible. If it ever bites, the user can disable `ccMergeWorktrees` in Settings.
 
 ## Open questions
 

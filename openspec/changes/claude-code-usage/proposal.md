@@ -12,7 +12,8 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
 ## What Changes
 
 - **Ingestion**: a new service recursively scans `~/.claude/projects/**/*.jsonl` (including the `<session>/subagents/` sub-directory where subagent transcripts live), parses every `type: "assistant"` line, and writes one row per assistant turn into SQLite. Resumes from a per-file byte offset checkpoint so re-runs are cheap.
-- **Project identity**: keyed on the `cwd` field from the JSONL record (more reliable than the path-encoded directory name, which is ambiguous on hyphens). Subagent rows carry the parent project's `cwd`, so cwd-based attribution naturally merges subagent token consumption back into the parent project. User-editable display alias maps `cwd → display name`. **No auto-merge of git worktrees in v1** — the owner plans to migrate to `~/workspace/<repo>/.worktree/<branch>/` shortly, after which prefix collapse becomes obvious enough to revisit.
+- **Project identity**: keyed on the `cwd` field from the JSONL record (more reliable than the path-encoded directory name, which is ambiguous on hyphens). Subagent rows carry the parent project's `cwd`, so cwd-based attribution naturally merges subagent token consumption back into the parent project. User-editable display alias maps `cwd → display name`. Worktree cwds (`.worktree/<branch>` and `.worktrees/agent-<uuid>`) **auto-fold into their parent repo** by default, with an opt-out toggle in Settings.
+- **Display configuration**: a Settings sheet section ("Claude Code") exposes two knobs — project label depth (1 or 2 trailing path components; default 1 drops the `workspace/` prefix) and a worktree-merge toggle. Both are persisted in `AppSettings` and apply on the next aggregation reload.
 - **Token visualisation**: each project's contribution is rendered as a **stacked four-colour band** showing the four token components (input / output / cache_creation / cache_read). Total height is a "weighted token volume" — a fixed-weight linear combination derived from Anthropic API pricing ratios. This is a proxy for relative subscription-quota burn (the subscription's real quota formula is not public), not a dollar cost.
 - **New Dashboard section**: a **time-axis overlay** chart — stacked area of per-project weighted token volume on the left axis, subscription utilization % as an overlaid line on the right axis, sharing one X axis. Hover surfaces the exact composition for that window. (This requires macOS 14+ Swift Charts APIs — see below.)
 - **Range chips**: the existing unified `RangePickerView` gains a **90d** chip (the new view's most useful preset for trend-spotting), giving `24h / 7d / 30d / 90d / All` shared by both subscription and CC views.
@@ -42,7 +43,9 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
 - **Modified code**
   - `DashboardView.swift` — wrap the existing subscription chart and the new CCUsageView in a `TabView` with two tabs ("Subscription" / "Claude Code"). Range chip selection is shared between tabs via the existing persisted `AppSettings` key.
   - `RangePickerView` — add 90d chip; verify chip ordering and `RangeSelection` enum extension.
-  - `UsageStore.swift` — additive DDL for new tables (`cc_message`, `cc_ingest_checkpoint`, `project_alias`).
+  - `UsageStore.swift` — additive DDL for new tables (`cc_message`, `cc_ingest_checkpoint`, `project_alias`); also bundle-id-based Application Support directory so the dev variant isolates its data.
+  - `AppSettings.swift` — three new keys: `lastDashboardTab`, `ccProjectNameDepth`, `ccMergeWorktrees`.
+  - `MainWindow/SettingsView.swift` — new "Claude Code" section with the label-depth picker + worktree-merge toggle.
 - **Schema additions** (SQLite, additive, no migration risk to existing `samples`)
   - `cc_message(ts INTEGER, cwd TEXT, model TEXT, input_tokens INTEGER, output_tokens INTEGER, cache_creation_tokens INTEGER, cache_read_tokens INTEGER, session_id TEXT, request_id TEXT, file_path TEXT)` with index on `(ts)` and `(cwd, ts)`.
   - `cc_ingest_checkpoint(file_path TEXT PRIMARY KEY, byte_offset INTEGER, last_seen_mtime INTEGER)`.
@@ -53,7 +56,7 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
 - **Out of scope for v1**:
   - **$ cost in dollars** — only "weighted token volume" relative units. Real billing is irrelevant for a subscription user.
   - **FSEvents / file-watcher** — incremental scan on Dashboard open is sufficient; live tailing is not worth the complexity.
-  - **Auto-merging worktrees** via regex / git remote / common prefix — defer until the planned `.worktree/` directory migration, which makes prefix collapse trivial.
+  - **Auto-merging non-worktree siblings** via regex / git remote / common prefix. v1 folds `.worktree(s)` segments only — other sibling-style worktree layouts still need an alias to merge.
   - **Per-message / per-session drilldown** — only aggregates. Reading raw transcripts is out of scope.
   - **Cross-machine merge** — `~/.claude` is per-machine; users with multiple machines are out of scope.
   - **CC export advanced options** — v1 always includes every project observed in the selected range. No per-project filter in the sheet, no presets, no scheduled export, no share-sheet send.

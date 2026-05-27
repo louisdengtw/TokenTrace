@@ -191,26 +191,81 @@ A project SHALL appear in the result if and only if it has at least one row with
 
 ### Requirement: Project alias management
 
-The system SHALL allow the user to set, edit, and delete a display name for any `cwd` observed in `cc_message`. Aliases SHALL be persisted in the `project_alias` SQLite table with `cwd` as primary key. A `cwd` without an alias SHALL be displayed using a synthesised label equal to the last two path components of the `cwd` (e.g. `/Users/x/workspace/TokenTrace` → `workspace/TokenTrace`).
+The system SHALL allow the user to set, edit, and delete a display name for any `cwd` observed in `cc_message`. Aliases SHALL be persisted in the `project_alias` SQLite table with `cwd` as primary key. A `cwd` without an alias SHALL be displayed using a synthesised label derived from its trailing path components; how many components are used is controlled by `AppSettings.ccProjectNameDepth` (default `1` — see the "Configurable project label depth" requirement below).
 
 #### Scenario: Set an alias
 
 - **WHEN** the user opens the alias sheet and sets `"/Users/x/workspace/TokenTrace"` to display name `"TT"`
-- **THEN** subsequent chart legends and tooltips for that cwd show `"TT"` instead of `workspace/TokenTrace`
+- **THEN** subsequent chart legends and tooltips for that cwd show `"TT"` instead of the synthesised label
 - **AND** the alias persists across app restarts
 
 #### Scenario: Delete an alias
 
 - **GIVEN** an alias `"TT"` exists for `"/Users/x/workspace/TokenTrace"`
 - **WHEN** the user removes it via the alias sheet
-- **THEN** the synthesised label `workspace/TokenTrace` is used again
+- **THEN** the synthesised label (at the current `ccProjectNameDepth`) is used again
 - **AND** no row for that cwd remains in `project_alias`
 
-#### Scenario: cwd shorter than two path components
+#### Scenario: cwd shorter than the configured depth
 
-- **GIVEN** a `cwd` of `/foo` (only one non-empty path component)
+- **GIVEN** a `cwd` of `/foo` (only one non-empty path component) and `ccProjectNameDepth = 2`
 - **WHEN** the synthesised label is computed
 - **THEN** the label is `/foo` (the full cwd, since two components are not available)
+
+### Requirement: Configurable project label depth
+
+The number of trailing `cwd` path components used to synthesise a project's display name SHALL be controlled by `AppSettings.ccProjectNameDepth`. The setting accepts `1` or `2`; the default is `1`. The user SHALL be able to change it from the app's Settings sheet. Changes apply on the next aggregation query (in practice: next range change or next Refresh on the Claude Code tab).
+
+#### Scenario: Default depth = 1
+
+- **GIVEN** the setting has never been written (default 1)
+- **WHEN** `tokensByProject` is called for a cwd `/Users/x/workspace/TokenTrace` with no alias
+- **THEN** the returned series has `displayName == "TokenTrace"`
+
+#### Scenario: Depth = 2
+
+- **GIVEN** the user sets `ccProjectNameDepth` to 2 in Settings
+- **WHEN** `tokensByProject` is called for the same cwd
+- **THEN** the returned series has `displayName == "workspace/TokenTrace"`
+
+#### Scenario: Out-of-range values clamp
+
+- **WHEN** a value outside `1..2` is written (e.g. 0 or 5)
+- **THEN** the setter clamps to the valid range; later reads return a value in `1..2`
+
+### Requirement: Worktree fold into parent project
+
+When `AppSettings.ccMergeWorktrees` is true (the default), the project-aggregation query SHALL fold cwds containing a `.worktree` or `.worktrees` path segment into the parent path. The folded series uses the parent path as its representative `cwd`, and the synthesised display name is derived from the parent path (subject to the depth setting). Aliases set on the parent SHALL be inherited by all of its folded worktrees. Disabling the setting SHALL keep worktree cwds as separate series.
+
+The query for per-project model breakdown SHALL match the same fold semantics: when fold is on, it aggregates rows whose `cwd` equals the parent OR matches `<parent>/.worktree/%` OR matches `<parent>/.worktrees/%`. When fold is off, only the exact cwd's rows are included.
+
+#### Scenario: Default fold
+
+- **GIVEN** three source cwds with token data — `/x/repo`, `/x/repo/.worktree/branch`, `/x/repo/.worktrees/agent-uuid`
+- **WHEN** `tokensByProject` runs with `ccMergeWorktrees = true`
+- **THEN** the result contains exactly one series
+- **AND** that series's `displayName` is derived from `/x/repo` (depth=1 ⇒ `"repo"`)
+- **AND** the bucket sums combine all three sources
+
+#### Scenario: Fold disabled
+
+- **GIVEN** the same three source cwds
+- **WHEN** `ccMergeWorktrees` is false
+- **THEN** the result contains three separate series
+
+#### Scenario: Alias on parent inherited by folded worktrees
+
+- **GIVEN** rows exist for `/x/repo` and `/x/repo/.worktree/branch`
+- **GIVEN** the user sets alias `"Repo"` on `/x/repo`
+- **WHEN** `tokensByProject` runs with fold on
+- **THEN** a single series is returned with `displayName == "Repo"`
+
+#### Scenario: Model breakdown sweeps worktree descendants when fold is on
+
+- **GIVEN** a folded project where the parent and its worktrees contain a mix of Opus and Sonnet rows
+- **WHEN** the CC tab's model split is computed for the folded series
+- **THEN** the Opus/Sonnet ratio reflects rows across the parent AND its `.worktree(s)/...` descendants
+- **AND** when fold is off, the ratio reflects only the exact representative cwd's rows
 
 ### Requirement: Ingest does not block the UI
 
