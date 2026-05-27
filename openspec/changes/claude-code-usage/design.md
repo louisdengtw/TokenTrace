@@ -218,7 +218,13 @@ Approach:
 - **CC report content** mirrors the on-screen CC tab: header (title + resolved date range + duration) → stats strip (total / top project / peak 5h util) → stacked-area chart with dual Y axis (project breakdown left, optional subscription overlay right) → project totals list with mix-breakdown bars and Opus/Sonnet split → footer (source DB path + generation timestamp).
 - **CC report assets** reuse the inlined `chart.umd.min.js` already bundled for `usage-export`. Chart.js can render stacked areas with two scales natively, so the dual-axis trick used in the live SwiftUI chart (rescale-and-relabel-trailing-axis) is unnecessary here.
 - **PDF** flows through the same `PDFRenderer.renderHTMLToPDF(html:)` path as `usage-export`; no new WebKit code.
-- **Defaults** match the live tab: title `"Claude Code Activity Report"`, format PDF, range `Last 7d`, both Include toggles ON, All projects selected. Per the existing usage-export spec, the sheet is stateless across opens — every open resets to defaults.
+- **Defaults** match the live tab: title `"Claude Code Activity Report"`, format PDF, range `Last 7d`, both Include toggles ON. Per the existing usage-export spec, the sheet is stateless across opens — every open resets to defaults.
+- **Projects section is informational, not interactive**, in v1. It lists every observed cwd in the selected range with a count in the section header; toggling or filtering at the project level is out of scope (no anti-feature controls that pretend to filter but don't).
+
+**Two follow-up notes:**
+
+1. (Future scaling) If a v2 report variant emerges (e.g. range-comparison, monthly-recap), the right move is to factor out a `ReportSheetChrome` view (header + Title + Format + RangePicker + Save panel + footer) and let each variant sheet supply only its body — not to keep adding fully-independent sheets. With three variants the polymorphism penalty starts to bite.
+2. (Report-vs-screen intent) v1's CC report mirrors the on-screen Claude Code tab section-for-section. This is a deliberate v1 expedient: the user's mental model is the same between live view and exported artefact, and the same `frontend-design` pass can polish both. A future iteration can diverge — denser typography, additional aggregate sections, landscape print orientation — once practice shows the on-screen layout reads poorly on paper.
 
 ### Decision 10 — Bump platform floor from macOS 13 to macOS 14
 

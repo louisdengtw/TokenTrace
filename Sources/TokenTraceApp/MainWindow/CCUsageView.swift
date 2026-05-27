@@ -7,6 +7,49 @@ struct CCUsageView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var selectedDate: Date?
 
+    // Sub-band components within each project's stacked area, in stacking
+    // order (input on the bottom, cache_read on top — matches the Mix bar in
+    // the project totals card).
+    private enum Component: String, CaseIterable {
+        case input
+        case output
+        case cacheCreate
+        case cacheRead
+
+        var opacity: Double {
+            switch self {
+            case .input:        return 0.95
+            case .output:       return 0.70
+            case .cacheCreate:  return 0.42
+            case .cacheRead:    return 0.18
+            }
+        }
+    }
+
+    private func weightedValue(bucket: CCBucket, component: Component) -> Double {
+        switch component {
+        case .input:        return Double(bucket.inputTokens)         * 1.0
+        case .output:       return Double(bucket.outputTokens)        * 5.0
+        case .cacheCreate:  return Double(bucket.cacheCreationTokens) * 1.25
+        case .cacheRead:    return Double(bucket.cacheReadTokens)     * 0.1
+        }
+    }
+
+    // Series IDs in stacking order: project1 components first (bottom), then
+    // project2, etc. Stacking happens by mark order, so foregroundStyleScale's
+    // domain ordering also drives visual band ordering.
+    private var seriesDomain: [String] {
+        projects.flatMap { p in
+            Component.allCases.map { "\(p.id)|\($0.rawValue)" }
+        }
+    }
+
+    private var seriesRange: [Color] {
+        projects.flatMap { p in
+            Component.allCases.map { p.baseColor.opacity($0.opacity) }
+        }
+    }
+
     // MARK: - Stub data sourcing
 
     private var rangeDays: Int {
@@ -185,12 +228,14 @@ struct CCUsageView: View {
         Chart {
             ForEach(projects) { project in
                 ForEach(project.buckets) { bucket in
-                    AreaMark(
-                        x: .value("Time", bucket.ts),
-                        y: .value("Weighted tokens", bucket.weightedTotal)
-                    )
-                    .foregroundStyle(by: .value("Project", project.displayName))
-                    .interpolationMethod(.monotone)
+                    ForEach(Component.allCases, id: \.self) { component in
+                        AreaMark(
+                            x: .value("Time", bucket.ts),
+                            y: .value("Weighted tokens", weightedValue(bucket: bucket, component: component))
+                        )
+                        .foregroundStyle(by: .value("Series", "\(project.id)|\(component.rawValue)"))
+                        .interpolationMethod(.monotone)
+                    }
                 }
             }
 
@@ -221,8 +266,8 @@ struct CCUsageView: View {
             }
         }
         .chartForegroundStyleScale(
-            domain: projects.map(\.displayName),
-            range:  projects.map(\.baseColor)
+            domain: seriesDomain,
+            range:  seriesRange
         )
         .chartYScale(domain: 0...yMax)
         .chartXScale(domain: domain)

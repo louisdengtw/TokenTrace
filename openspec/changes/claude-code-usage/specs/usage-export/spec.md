@@ -42,7 +42,6 @@ The defaults are:
 - Range selection: preset `"Last 7d"` (preset of `last7d` from the shared range widget)
 - Include `Project totals + mix breakdown`: checked
 - Include `Subscription utilisation overlay`: checked
-- `All projects` selection: checked
 
 #### Scenario: First open in a session
 
@@ -51,29 +50,32 @@ The defaults are:
 - **AND** the format selector shows "PDF" selected
 - **AND** the range widget shows "Last 7d" with the "7d" chip selected
 - **AND** both Include toggles are checked
-- **AND** the All-projects toggle is checked
 
 #### Scenario: Reopen after a prior CC export
 
 - **WHEN** the user successfully exports a CC report with title "Q1 CC Review", format HTML, range Custom, and the subscription-overlay toggle unchecked, then later reopens the CC export sheet
-- **THEN** the sheet is restored to defaults (title, format PDF, range Last 7d, both toggles checked, All projects checked)
+- **THEN** the sheet is restored to defaults (title, format PDF, range Last 7d, both Include toggles checked)
 
 ### Requirement: Claude Code export sheet form layout
 
-`CCExportSheetView` SHALL present, in vertical order: a header (sheet title + one-line description), a Title text field, a Format segmented selector (PDF / HTML), a Date range section using the shared `RangePickerView`, an Include section with two checkboxes (`Project totals + mix breakdown`, `Subscription utilisation overlay`), and a Projects section showing the observed `cwd` set with an `All projects` toggle. The footer SHALL contain Cancel and Save buttons.
+`CCExportSheetView` SHALL present, in vertical order: a header (sheet title + one-line description), a Title text field, a Format segmented selector (PDF / HTML), a Date range section using the shared `RangePickerView`, an Include section with two checkboxes (`Project totals + mix breakdown`, `Subscription utilisation overlay`), and a Projects-in-range section listing every observed cwd in the selected range as read-only monospaced text with a count in the section header. The footer SHALL contain Cancel and Save buttons.
 
-The Projects section in v1 SHALL list the observed cwds read-only beyond the All toggle (no per-row check boxes). Toggling All off SHALL surface no behavioural change in v1 (the report still includes every project); a per-project picker is out of scope.
+The Projects-in-range section is informational — there is no per-project filter control in v1. The exported report always contains every project observed in the selected range.
 
 #### Scenario: Sheet shows observed cwds
 
 - **GIVEN** `cc_message` contains rows for four distinct cwds in the selected range
 - **WHEN** the user opens the CC export sheet
-- **THEN** the Projects section shows those four cwd strings (read-only text), preceded by an All-projects toggle
+- **THEN** the Projects-in-range section header reads "Projects in range (4)"
+- **AND** the section lists those four cwd strings as read-only text
+- **AND** there is no toggle or checkbox in the Projects section
 
-#### Scenario: All-projects toggle is informational in v1
+#### Scenario: Range change updates the project list
 
-- **WHEN** the user unchecks the All-projects toggle and then clicks Save
-- **THEN** the generated report still contains every project observed in the range (the toggle has no effect on output in v1)
+- **GIVEN** the sheet is open with the 7d range selected and four cwds visible
+- **WHEN** the user picks the 24h range and only one cwd has activity in that window
+- **THEN** the Projects-in-range section header updates to "Projects in range (1)"
+- **AND** only that cwd is listed
 
 ### Requirement: Claude Code export Save flow
 

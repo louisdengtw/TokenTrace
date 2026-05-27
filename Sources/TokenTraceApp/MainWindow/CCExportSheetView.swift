@@ -15,7 +15,6 @@ struct CCExportSheetView: View {
     @State private var range: RangeSelection = .preset(.last7d)
     @State private var includeSubscriptionOverlay: Bool = true
     @State private var includeProjectTotals: Bool = true
-    @State private var allProjectsSelected: Bool = true
 
     private let stubObservedCwds: [String] = [
         "/Users/louisdeng/workspace/TokenTrace",
@@ -58,17 +57,17 @@ struct CCExportSheetView: View {
                         .font(.system(size: 11))
                     }
 
-                    field("Projects") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Toggle("All projects", isOn: $allProjectsSelected)
-                                .toggleStyle(.checkbox)
-                                .font(.system(size: 11))
+                    field("Projects in range (\(stubObservedCwds.count))") {
+                        VStack(alignment: .leading, spacing: 4) {
                             ForEach(stubObservedCwds, id: \.self) { cwd in
                                 Text(cwd)
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(.tertiary)
-                                    .padding(.leading, 22)
                             }
+                            Text("All observed projects in the selected range are included. Per-project filtering is not in v1.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 4)
                         }
                     }
                 }

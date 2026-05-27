@@ -124,7 +124,8 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [ ] 13.10 Wire `DashboardView`'s toolbar Export button: read `selectedTab`; open `ExportSheetView` or `CCExportSheetView` accordingly; button label flips between "Export Report…" and "Export Claude Code…"
 - [ ] 13.11 Wire File menu / ⌘E (`MainMenuBuilder.swift`): same tab-aware dispatch; menu item title flips with `selectedTab`
 - [ ] 13.12 Unit tests `CCReportGeneratorTests`: fixture-driven HTML output passes sentinel substitution (all tokens replaced exactly once); JSON-encoded series round-trips; PDF render path returns non-empty data on a small fixture
-- [ ] 13.13 Manual smoke: export from each tab, open exported HTML offline (network disconnected), confirm zero non-`file://` requests via browser Network panel; open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin
+- [ ] 13.13 Page-handling for PDF: add `@page` rules to `cc-report.html.template` (landscape A4 or portrait with chart scale-to-fit), and `page-break-inside: avoid` on stats strip + project totals rows. The existing usage-export PDF path is portrait A4 single-axis lines; the new dual-axis stacked area + project totals list is qualitatively wider, so verify with a 4+ project × 30-day fixture that nothing overflows horizontally. Decide page orientation before the manual smoke
+- [ ] 13.14 Manual smoke: export from each tab, open exported HTML offline (network disconnected), confirm zero non-`file://` requests via browser Network panel; open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin and pages break sensibly
 
 ## 14. ProjectAliasSheet
 

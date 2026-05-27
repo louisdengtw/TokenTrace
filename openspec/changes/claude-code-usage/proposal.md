@@ -56,4 +56,4 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
   - **Auto-merging worktrees** via regex / git remote / common prefix — defer until the planned `.worktree/` directory migration, which makes prefix collapse trivial.
   - **Per-message / per-session drilldown** — only aggregates. Reading raw transcripts is out of scope.
   - **Cross-machine merge** — `~/.claude` is per-machine; users with multiple machines are out of scope.
-  - **CC export advanced options** — v1 always includes all observed projects (no per-project filter in the sheet beyond an All / None level); no presets, no scheduled export, no share-sheet send.
+  - **CC export advanced options** — v1 always includes every project observed in the selected range. No per-project filter in the sheet, no presets, no scheduled export, no share-sheet send.
