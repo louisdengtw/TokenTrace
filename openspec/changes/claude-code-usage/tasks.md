@@ -53,16 +53,16 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 8. CCUsageStore (data layer)
 
-- [ ] 8.1 Add `Persistence/CCUsageStore.swift`
-- [ ] 8.2 `insertMessages(_ rows: [CCMessage])` — batched `INSERT OR IGNORE` in a single transaction; return `(inserted: Int, ignored: Int)` so the divergence counter (task 9.9) can attribute correctly
-- [ ] 8.3 `tokensByProject(from:to:bucket:) -> [ProjectSeries]` — group by `(cwd, bucket_floor(ts))`, sum the four token components, compute weighted total per bucket
-- [ ] 8.4 Apply alias lookup at query time: join `project_alias` ON `cwd`, fall back to synthesised label (last two path components, or full cwd if fewer)
-- [ ] 8.5 Implement zero-fill per spec: for every project that has any row in `[from, to]`, the returned series MUST include every bucket boundary in `[from, to]` (zero rows where no data)
-- [ ] 8.6 Omit projects with zero activity across the entire range (do not return empty series)
-- [ ] 8.7 `oldestCCMessageTimestamp() -> Date?` — for the "All" preset cross-source resolution
-- [ ] 8.8 `aliases() -> [String: String]` and `setAlias(cwd:displayName:)` / `removeAlias(cwd:)`
-- [ ] 8.9 `observedCwds() -> [String]` — returns all distinct cwds in `cc_message`, for the alias sheet UI
-- [ ] 8.10 Unit tests against a fixture DB: two-project zero-fill (5-day range, project A on days 1–3, project B on days 2–4, expect 5 buckets each), alias merge (two cwds same alias sum together with zero-fill applied to the merged series), absent project omitted, empty range returns `[]`
+- [x] 8.1 Add `Persistence/CCUsageStore.swift`. Also added `Models/CCMessage.swift` for the row value type (separate from the store class — used by both store and ingester)
+- [x] 8.2 `insertMessages(_ rows: [CCMessage])` — batched `INSERT OR IGNORE` in a single transaction; returns `(inserted: Int, ignored: Int)` by reading `sqlite3_changes` per row
+- [x] 8.3 `tokensByProject(from:to:bucket:) -> [ProjectSeries]` — group by `(cwd, bucket_floor(ts))` in SQL, sum the four token components; `ProjectBucket.weightedTotal` derives from `CCWeightedVolume`
+- [x] 8.4 Alias lookup applied at query time in Swift (single `SELECT cwd, display_name FROM project_alias` once; map applied during merge). Synthesised fallback = last two non-empty path components, or full `cwd` when fewer
+- [x] 8.5 Zero-fill: every project series spans all bucket boundaries in `[from, to]`; absent boundaries are emitted with zero counts. Implementation: post-SQL pass that walks `bucketBoundaries(from:to:secondsPerBucket:)` per project
+- [x] 8.6 Projects with no rows in `[from, to]` are naturally omitted because the SQL `WHERE` only returns rows in range; only cwds that survive the WHERE appear in the result
+- [x] 8.7 `oldestCCMessageTimestamp() -> Date?` — `SELECT MIN(ts)` with null-handling
+- [x] 8.8 `aliases() -> [String: String]`, `setAlias(cwd:displayName:)` (INSERT OR REPLACE), `removeAlias(cwd:)` (DELETE)
+- [x] 8.9 `observedCwds() -> [String]` — `SELECT DISTINCT cwd FROM cc_message ORDER BY cwd`
+- [x] 8.10 Unit tests `CCUsageStoreTests`: insert + dedup counts, empty insert no-op, two-project zero-fill (project A days 0–2, project B days 1–3, range days 0–4 → 5 buckets each with zero entries at absent days), absent project omitted from result, empty range returns `[]`, inverted range returns `[]`, alias merge with per-bucket sum, alias overrides synthesised label, single-component cwd returns full path, oldest timestamp empty / populated, aliases CRUD (empty / set / replace / remove / remove-unknown-no-op), observedCwds distinct + sorted. 18 tests, all pass
 
 ## 9. CCUsageIngester (file walking + parsing + checkpoints)
 
