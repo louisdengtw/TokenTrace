@@ -105,6 +105,34 @@
     height: 320px;
     page-break-inside: avoid;
   }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mid);
+    align-items: center;
+  }
+  .chart-legend .item { display: inline-flex; align-items: center; gap: 5px; }
+  .chart-legend .sw-rect {
+    width: 12px; height: 10px; border-radius: 1.5px;
+  }
+  .chart-legend .sw-line {
+    display: inline-block;
+    width: 18px; height: 2px;
+    vertical-align: middle;
+  }
+  .chart-legend .sw-dash {
+    /* Inline SVG with explicit <circle>s — guaranteed round dots regardless
+       of how the renderer interprets `border-style: dotted` (WebKit's PDF
+       print pipeline rendered the latter as short dashes, not circles). */
+    display: inline-flex;
+    align-items: center;
+    width: 22px; height: 4px;
+    vertical-align: middle;
+  }
 
   /* Project totals list */
   .totals { margin: 0 0 32px; }
@@ -242,6 +270,7 @@ __CHART_JS__
     <h2>Weighted token volume by project</h2>
     <div class="subhead" id="chart-subhead"></div>
     <div class="chart-wrap"><canvas id="cc-chart"></canvas></div>
+    <div id="chart-legend" class="chart-legend"></div>
   </div>
 
   <div id="totals" class="totals" hidden>
@@ -316,6 +345,12 @@ __CHART_JS__
     return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
   }
 
+  // Subscription utilisation line colour — single amber tone shared with
+  // the live CCUsageView (Color(red: 0.98, green: 0.70, blue: 0.20)) so
+  // the chart looks identical whether viewed in-app or exported. Not in
+  // the project palette, so it never collides with a project band.
+  const UTIL_COLOR_SOLID  = 'rgb(250, 179, 51)';
+
   const datasets = [];
   for (const p of REPORT.series) {
     for (const c of COMPONENT_OPS) {
@@ -331,52 +366,69 @@ __CHART_JS__
         yAxisID: 'y',
         tension: 0.3,
         cubicInterpolationMode: 'monotone',
+        // Higher `order` is drawn LATER (i.e. on top). Areas use 0; util
+        // lines use 10 below so they always appear in front of the stack.
+        order: 0,
         legendStack: p.displayName,
         legendColor: p.color,
       });
     }
   }
 
+  // 5h util tracked as a dataset (so the right Y axis sizes correctly +
+  // tooltip resolution works), but rendered with transparent strokes —
+  // the *visible* line is painted by the `utilOnTop` plugin in
+  // `afterDatasetsDraw` so it's guaranteed above the stacked area.
+  // Chart.js v4's dataset `order` was unreliable for stacked-area + line
+  // mixing; the plugin approach is the deterministic fix.
   if (INCLUDE_OVERLAY && REPORT.fiveHour && REPORT.fiveHour.length) {
     datasets.push({
       label: '5h util',
       data: REPORT.fiveHour.map(s => ({x: s.ts, y: s.util})),
       backgroundColor: 'transparent',
-      borderColor: 'rgba(26,22,18,0.85)',
-      borderWidth: 1.4,
+      borderColor: 'transparent',
+      borderWidth: 0,
       fill: false,
       pointRadius: 0,
       yAxisID: 'yUtil',
       stack: undefined,
       tension: 0,
       legendStack: '__util_5h__',
-      legendColor: '#1a1612',
-    });
-  }
-  if (INCLUDE_OVERLAY && REPORT.sevenDay && REPORT.sevenDay.length) {
-    datasets.push({
-      label: '7d util',
-      data: REPORT.sevenDay.map(s => ({x: s.ts, y: s.util})),
-      backgroundColor: 'transparent',
-      borderColor: 'rgba(26,22,18,0.55)',
-      borderWidth: 1.4,
-      borderDash: [4, 3],
-      fill: false,
-      pointRadius: 0,
-      yAxisID: 'yUtil',
-      stack: undefined,
-      tension: 0,
-      legendStack: '__util_7d__',
-      legendColor: 'rgba(26,22,18,0.55)',
+      legendColor: UTIL_COLOR_SOLID,
     });
   }
 
+  // Chart.js 4 has no built-in date adapter, so `type: 'time'` renders
+  // blank without a separately-bundled adapter. Use a linear scale over
+  // millisecond timestamps + a custom tick formatter — the same approach
+  // the subscription report uses.
+  const fmtTick = function (v) {
+    const d = new Date(v);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric' });
+  };
+  const fmtTooltipTitle = function (items) {
+    if (!items.length) return '';
+    const d = new Date(items[0].parsed.x);
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
   const scales = {
     x: {
-      type: 'time',
-      time: { tooltipFormat: 'yyyy-MM-dd HH:mm', displayFormats: { day: 'MMM d', hour: 'MMM d HH:mm', week: 'MMM d' } },
+      type: 'linear',
+      min: REPORT.rangeStart,
+      max: REPORT.rangeEnd,
       grid: { display: false },
-      ticks: { color: '#5a544c', font: { family: 'ui-monospace, monospace', size: 10 } },
+      ticks: {
+        color: '#5a544c',
+        font: { family: 'ui-monospace, monospace', size: 10 },
+        maxRotation: 0,
+        autoSkip: true,
+        maxTicksLimit: 8,
+        callback: fmtTick,
+      },
     },
     y: {
       position: 'left',
@@ -399,43 +451,90 @@ __CHART_JS__
     };
   }
 
+  // ----- HTML legend
+  const legendEl = document.getElementById('chart-legend');
+  if (legendEl) {
+    let html = '';
+    for (const p of REPORT.series) {
+      html += '<span class="item">'
+            + '<span class="sw-rect" style="background:' + p.color + ';"></span>'
+            + p.displayName
+            + '</span>';
+    }
+    if (INCLUDE_OVERLAY && REPORT.fiveHour && REPORT.fiveHour.length) {
+      html += '<span class="item">'
+            + '<span class="sw-dash">'
+            + '<svg width="22" height="4" viewBox="0 0 22 4" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+            + '<circle cx="2" cy="2" r="1.2" fill="' + UTIL_COLOR_SOLID + '"/>'
+            + '<circle cx="8" cy="2" r="1.2" fill="' + UTIL_COLOR_SOLID + '"/>'
+            + '<circle cx="14" cy="2" r="1.2" fill="' + UTIL_COLOR_SOLID + '"/>'
+            + '<circle cx="20" cy="2" r="1.2" fill="' + UTIL_COLOR_SOLID + '"/>'
+            + '</svg>'
+            + '</span>'
+            + '5h util'
+            + '</span>';
+    }
+    legendEl.innerHTML = html;
+  }
+
+  // Plugin: draws util lines on top of EVERYTHING the dataset renderer
+  // produced. We can't rely on dataset `order` alone — Chart.js v4's
+  // stacked-area Filler interacts oddly with line strokes at the same z.
+  const utilOnTopPlugin = {
+    id: 'utilOnTop',
+    afterDatasetsDraw(chart) {
+      if (!INCLUDE_OVERLAY) return;
+      const ctx = chart.ctx;
+      const xScale = chart.scales.x;
+      const yUtilScale = chart.scales.yUtil;
+      if (!xScale || !yUtilScale) return;
+
+      const drawLine = function (data, color, dash, width) {
+        if (!data || !data.length) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dash);
+        // Round caps make each tiny on-segment render as a circle — same
+        // dotted-line recipe as SwiftUI Charts uses.
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        let started = false;
+        for (let i = 0; i < data.length; i++) {
+          const pt = data[i];
+          const x = xScale.getPixelForValue(pt.ts);
+          const y = yUtilScale.getPixelForValue(pt.util);
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      // Dotted main line: `[0.01, 4]` collapses the on-segment to a point;
+      // `lineCap: 'round'` expands it into a circle of lineWidth diameter.
+      drawLine(REPORT.fiveHour, UTIL_COLOR_SOLID, [0.01, 4], 1.4);
+    }
+  };
+
   new Chart(document.getElementById('cc-chart'), {
     type: 'line',
     data: { datasets },
+    plugins: [utilOnTopPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: {
-          display: true,
-          position: 'bottom',
-          labels: {
-            // Custom: one legend entry per project (not per sub-band) +
-            // the two utilisation series. Dedup by `legendStack`.
-            generateLabels: function (chart) {
-              const seen = new Map();
-              for (const d of chart.data.datasets) {
-                if (seen.has(d.legendStack)) continue;
-                let txt;
-                if (d.legendStack === '__util_5h__') txt = '5h util';
-                else if (d.legendStack === '__util_7d__') txt = '7d util';
-                else txt = d.legendStack;
-                seen.set(d.legendStack, {
-                  text: txt,
-                  fillStyle: d.legendStack.startsWith('__util_') ? 'transparent' : d.legendColor,
-                  strokeStyle: d.legendColor,
-                  lineWidth: d.legendStack.startsWith('__util_') ? 1.4 : 0,
-                  hidden: false,
-                  font: { family: 'ui-monospace, monospace', size: 11 },
-                });
-              }
-              return Array.from(seen.values());
-            },
-            color: '#5a544c',
-          },
-        },
+        // Chart.js native legend disabled; we render it manually as HTML
+        // below the canvas (see `#chart-legend` populator at the bottom of
+        // this script). Reason: with many datasets the native legend's
+        // custom generateLabels path was unreliable across builds — HTML
+        // gives us deterministic colours, rect vs line vs dashed swatches,
+        // and the same fonts as the rest of the report.
+        legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(255,255,255,0.97)',
           borderColor: 'rgba(28,24,18,0.14)',
@@ -443,6 +542,7 @@ __CHART_JS__
           titleColor: '#1a1612',
           bodyColor: '#1a1612',
           padding: 8,
+          callbacks: { title: fmtTooltipTitle },
         },
       },
       scales: scales,

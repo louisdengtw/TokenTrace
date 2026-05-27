@@ -20,7 +20,6 @@ struct CCUsageView: View {
     @State private var displayedProjects: [CCUsageStore.ProjectSeries] = []
     @State private var aggregates: [ProjectAggregate] = []
     @State private var fiveHour: [UsageSample] = []
-    @State private var sevenDay: [UsageSample] = []
     @State private var hoveredRowCwd: String? = nil
 
     /// At most this many distinct projects are shown individually. Everything
@@ -62,6 +61,13 @@ struct CCUsageView: View {
         return Self.palette[i % Self.palette.count]
     }
 
+    /// Subscription utilisation line colour. Single amber tone for both
+    /// dark and light mode so the live chart and the exported HTML/PDF
+    /// match. Deliberately *not* in the project palette.
+    private var utilLineColor: Color {
+        Color(red: 0.98, green: 0.70, blue: 0.20)
+    }
+
     // MARK: - Query orchestration
 
     private var rangeDays: Double {
@@ -97,7 +103,6 @@ struct CCUsageView: View {
         projectsAll = raw
         displayedProjects = groupTopN(raw, n: maxIndividualProjects)
         fiveHour = usageStore.query(bucket: .fiveHour, from: domain.lowerBound, to: domain.upperBound)
-        sevenDay = usageStore.query(bucket: .sevenDay, from: domain.lowerBound, to: domain.upperBound)
         aggregates = computeAggregates(displayedProjects)
     }
 
@@ -406,24 +411,22 @@ struct CCUsageView: View {
                 }
             }
 
+            // Only the 5-hour utilisation overlay is shown. The 7-day line
+            // was removed because it traced a smooth slow ramp that didn't
+            // add information beyond what the 5h sawtooth + stats strip
+            // already convey.
             ForEach(fiveHour, id: \.ts) { s in
                 LineMark(
                     x: .value("Time", s.ts),
                     y: .value("Util", s.util * yMax / 100),
                     series: .value("Series", "5h")
                 )
-                .foregroundStyle(.primary.opacity(0.85))
-                .lineStyle(StrokeStyle(lineWidth: 1.4))
-            }
-
-            ForEach(sevenDay, id: \.ts) { s in
-                LineMark(
-                    x: .value("Time", s.ts),
-                    y: .value("Util", s.util * yMax / 100),
-                    series: .value("Series", "7d")
-                )
-                .foregroundStyle(.primary.opacity(0.55))
-                .lineStyle(StrokeStyle(lineWidth: 1.4, dash: [4, 3]))
+                .foregroundStyle(utilLineColor)
+                // Dotted line: `dash: [0.01, gap]` collapses the on-segment
+                // to a point, then `lineCap: .round` expands it into a
+                // circle of `lineWidth` diameter. Standard SwiftUI Charts
+                // recipe for a dotted stroke.
+                .lineStyle(StrokeStyle(lineWidth: 1.4, lineCap: .round, dash: [0.01, 4]))
             }
 
             if let selectedDate {
@@ -493,7 +496,6 @@ struct CCUsageView: View {
             .prefix(8)
         let top = ordered.first?.bucket
         let nearestFive = fiveHour.min { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }
-        let nearestSeven = sevenDay.min { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }
 
         let cardWidth: CGFloat = 230
         let xClamped = max(8, min(plotSize.width - cardWidth - 8, xOffset + 12))
@@ -531,19 +533,10 @@ struct CCUsageView: View {
                 componentRow(label: "cache read",   tokens: top.cacheReadTokens)
             }
 
-            if nearestFive != nil || nearestSeven != nil {
+            if let s = nearestFive {
                 Divider().opacity(0.4)
-                HStack(spacing: 12) {
-                    if let s = nearestFive {
-                        Text("5h: \(Int(s.util.rounded()))%")
-                            .font(.system(size: 10, design: .monospaced))
-                    }
-                    if let s = nearestSeven {
-                        Text("7d: \(Int(s.util.rounded()))%")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("5h: \(Int(s.util.rounded()))%")
+                    .font(.system(size: 10, design: .monospaced))
             }
         }
         .padding(10)
@@ -584,15 +577,9 @@ struct CCUsageView: View {
                 }
             }
             Spacer()
-            HStack(spacing: 12) {
-                HStack(spacing: 5) {
-                    Rectangle().fill(Color.primary.opacity(0.85)).frame(width: 14, height: 1.5)
-                    Text("5h util").font(.system(size: 10)).foregroundStyle(.secondary)
-                }
-                HStack(spacing: 5) {
-                    DashedLineSwatch()
-                    Text("7d util").font(.system(size: 10)).foregroundStyle(.secondary)
-                }
+            HStack(spacing: 5) {
+                DashedLineSwatch(color: utilLineColor)
+                Text("5h util").font(.system(size: 10)).foregroundStyle(.secondary)
             }
         }
     }
@@ -844,12 +831,19 @@ private struct ComponentMiniBar: View {
 }
 
 private struct DashedLineSwatch: View {
+    let color: Color
+
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<3, id: \.self) { _ in
-                Rectangle().fill(Color.primary.opacity(0.55)).frame(width: 3, height: 1.5)
+        // Four explicit dots — most reliable across rendering paths. The
+        // earlier `StrokeStyle(dash: [0.1, 3])` + `lineCap: .round` trick
+        // produced dots so tight they read as a continuous line at the
+        // swatch's small size; explicit Circle()s never blur together.
+        HStack(spacing: 3) {
+            ForEach(0..<4, id: \.self) { _ in
+                Circle().fill(color).frame(width: 2, height: 2)
             }
         }
-        .frame(width: 14, alignment: .leading)
+        .frame(width: 20, alignment: .leading)
     }
 }
+

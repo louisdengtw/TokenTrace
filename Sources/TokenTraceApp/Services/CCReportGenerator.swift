@@ -144,12 +144,8 @@ struct CCReportGenerator {
 
         // Subscription overlay (optional).
         var fiveHourPoints: [UtilPointJSON] = []
-        var sevenDayPoints: [UtilPointJSON] = []
         if request.includeOverlay {
             fiveHourPoints = usageStore.query(bucket: .fiveHour, from: start, to: end).map {
-                UtilPointJSON(ts: epochMillis($0.ts), util: $0.util)
-            }
-            sevenDayPoints = usageStore.query(bucket: .sevenDay, from: start, to: end).map {
                 UtilPointJSON(ts: epochMillis($0.ts), util: $0.util)
             }
         }
@@ -172,8 +168,7 @@ struct CCReportGenerator {
             rangeStart: epochMillis(start),
             rangeEnd: epochMillis(end),
             series: seriesJSON,
-            fiveHour: fiveHourPoints,
-            sevenDay: sevenDayPoints
+            fiveHour: fiveHourPoints
         )
         let totalsJSON = TotalsJSON(
             leadingWeighted: leadingWeighted,
@@ -361,7 +356,6 @@ private struct ReportJSON: Encodable {
     let rangeEnd: Int64
     let series: [SeriesJSON]
     let fiveHour: [UtilPointJSON]
-    let sevenDay: [UtilPointJSON]
 }
 
 private struct SeriesJSON: Encodable {
