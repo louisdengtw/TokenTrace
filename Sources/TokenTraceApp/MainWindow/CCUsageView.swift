@@ -799,58 +799,58 @@ struct CCUsageView: View {
 
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 12) {
-            Text(agg.displayName)
-                .font(.system(size: 11))
-                .frame(width: 110, alignment: .leading)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                Text(agg.displayName)
+                    .font(.system(size: 11))
+                    .frame(width: 110, alignment: .leading)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(scheme == .dark
-                              ? Color.white.opacity(0.05)
-                              : Color.black.opacity(0.05))
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(agg.baseColor.opacity(0.85))
-                        .frame(width: geo.size.width * (agg.weighted / max(leadingWeighted, 1)))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(scheme == .dark
+                                  ? Color.white.opacity(0.05)
+                                  : Color.black.opacity(0.05))
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(agg.baseColor.opacity(0.85))
+                            .frame(width: geo.size.width * (agg.weighted / max(leadingWeighted, 1)))
+                    }
                 }
-            }
-            .frame(height: 8)
+                .frame(height: 8)
 
-            Text(formatVolume(agg.weighted))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.primary)
-                .frame(width: 60, alignment: .trailing)
+                Text(formatVolume(agg.weighted))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .frame(width: 60, alignment: .trailing)
 
-            Text("\(pct)%")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 32, alignment: .trailing)
+                Text("\(pct)%")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, alignment: .trailing)
 
-            ComponentMiniBar(
-                input: agg.inputTokens,
-                output: agg.outputTokens,
-                cacheCreation: agg.cacheCreationTokens,
-                cacheRead: agg.cacheReadTokens,
-                color: agg.baseColor
-            )
-            .frame(width: 80, height: 6)
-            .help("Share of weighted volume by component (input×1 + output×5 + cache_create×1.25 + cache_read×0.1)")
+                ComponentMiniBar(
+                    input: agg.inputTokens,
+                    output: agg.outputTokens,
+                    cacheCreation: agg.cacheCreationTokens,
+                    cacheRead: agg.cacheReadTokens,
+                    color: agg.baseColor
+                )
+                .frame(width: 80, height: 6)
+                .help("Share of weighted volume by component (input×1 + output×5 + cache_create×1.25 + cache_read×0.1)")
 
-            Group {
-                if agg.cwd == Self.otherCwdSentinel {
-                    Text("—")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text("Opus \(opusPct)% · Sonnet \(100 - opusPct)%")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                Group {
+                    if agg.cwd == Self.otherCwdSentinel {
+                        Text("—")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Text("Opus \(opusPct)% · Sonnet \(100 - opusPct)%")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .frame(width: 130, alignment: .trailing)
             }
-            .frame(width: 130, alignment: .trailing)
-            }  // end HStack
 
             // Hover reveal: show the representative cwd (or "Other" caveat)
             // as an in-flow line that pushes the next row down a few px.

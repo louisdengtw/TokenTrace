@@ -218,7 +218,9 @@ Coverage legend: ✓ auto-tested · ◇ source-audited · ⊘ deferred to live s
 
 ## 19. Pre-PR review
 
-- [ ] 19.1 Run the `simplify` skill against the new files in `Persistence/`, `Services/`, `Models/`, `MainWindow/`, `Resources/`
-- [ ] 19.2 `openspec validate claude-code-usage` clean
-- [ ] 19.3 Self-review: confirm none of the new code reads `message.content` and the divergence counter is wired
-- [ ] 19.4 Manual smoke against a fresh DB (delete `usage.sqlite`, relaunch, open CCUsageView) and confirm onboarding + first ingest path
+- [x] 19.0 Bumped `CFBundleShortVersionString` 1.0 → 1.2 + `CFBundleVersion` 1 → 3 (was stuck at 1.0 since first release; v1.1 cookie-import release tagged but plist never bumped). Build counter aligned with public release count: 1.0=1, 1.1=2, 1.2=3
+- [x] 19.1 `pr-review-toolkit:code-simplifier` agent run against the new files in `Models/`, `Persistence/`, `Services/`, `MainWindow/`. Four small simplifications landed (FlowLayout dead-branch removal, CCUsageStore.bucketBoundaries inlining, CCReportGenerator pct backfill via indices loop, CCUsageView indent fix). 106 tests still green. Findings worth raising — `ProjectAliasSheet.synthesisedLabel` duplicates `CCUsageStore.synthesiseDisplayName`; not deduplicated to keep the store's surface small
+- [x] 19.2 `openspec validate claude-code-usage` clean
+- [x] 19.3 Source-grep `'"content"\|message\.content\|\.content\b'` against all `Sources/TokenTraceApp/**.swift` → 0 hits. Divergence counter wired: `CCUsageIngester.Accumulator.divergences` incremented when same uuid has different payload hash (line 181) and surfaced in `IngestSummary.divergences`. Not displayed in the UI by design — internal tracking only
+- [x] 19.4 Production smoke 2026-05-28: backed up production `usage.sqlite` (8917 samples preserved), `make install`'d v1.2 over `/Applications/TokenTrace.app`, launched, verified About → 1.2, CC tab → 15.4 onboarding card, Refresh → ingest + chart appears, restored backup so polling history is intact
+- [x] 19.5 Sidebar version label was hardcoded `"v1.0"` in `MainWindowContent.swift:93` — spotted live during 19.4 prod smoke. Fixed by reading `Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")` once at static init; future bumps now Info.plist-only

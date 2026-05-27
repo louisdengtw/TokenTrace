@@ -116,12 +116,10 @@ struct CCReportGenerator {
                 isOther: p.cwd == Self.otherCwdSentinel
             ))
         }
-        rows = rows.map { row in
-            var copy = row
-            copy.pct = grandTotalWeighted > 0
-                ? Int((row.weighted / grandTotalWeighted * 100).rounded())
-                : 0
-            return copy
+        if grandTotalWeighted > 0 {
+            for i in rows.indices {
+                rows[i].pct = Int((rows[i].weighted / grandTotalWeighted * 100).rounded())
+            }
         }
         let leadingWeighted = rows.first?.weighted ?? 1
 

@@ -354,14 +354,12 @@ final class CCUsageStore {
     }
 
     /// All bucket-floor boundaries from the floor of `from` to the floor of
-    /// `to`, inclusive, stepping by `secondsPerBucket`.
+    /// `to`, inclusive, stepping by `secondsPerBucket`. Caller guarantees
+    /// `from <= to`.
     private func bucketBoundaries(from: Date, to: Date, secondsPerBucket: Int) -> [Int64] {
-        let startSec = Int64(from.timeIntervalSince1970)
-        let endSec   = Int64(to.timeIntervalSince1970)
-        let step     = Int64(secondsPerBucket)
-        let floorStart = (startSec / step) * step
-        let floorEnd   = (endSec / step) * step
-        guard floorEnd >= floorStart else { return [] }
+        let step = Int64(secondsPerBucket)
+        let floorStart = (Int64(from.timeIntervalSince1970) / step) * step
+        let floorEnd   = (Int64(to.timeIntervalSince1970)   / step) * step
         var out: [Int64] = []
         var ts = floorStart
         while ts <= floorEnd {

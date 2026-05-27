@@ -11,6 +11,12 @@ struct MainWindowContent: View {
 
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
 
+    /// Reads `CFBundleShortVersionString` once at launch so the sidebar
+    /// version label tracks Info.plist instead of drifting (was hardcoded
+    /// `"v1.0"` through the v1.1 release; spotted during Group 19 prod smoke).
+    private static let appVersion: String =
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?"
+
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -90,7 +96,9 @@ struct MainWindowContent: View {
                     Text("TokenTrace")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(-0.08)
-                    Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro+" : "v1.0")
+                    Text(usageManager.hasWeeklySonnet
+                         ? "v\(Self.appVersion) · Pro+"
+                         : "v\(Self.appVersion)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }

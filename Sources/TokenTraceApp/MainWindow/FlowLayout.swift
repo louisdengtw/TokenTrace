@@ -61,8 +61,8 @@ struct FlowLayout: Layout {
             if needed > maxWidth, !rowItems.isEmpty {
                 flushRow()
             }
+            rowWidth = rowItems.isEmpty ? size.width : rowWidth + horizontalSpacing + size.width
             rowItems.append((idx, size))
-            rowWidth = rowItems.isEmpty ? size.width : (rowWidth == 0 ? size.width : rowWidth + horizontalSpacing + size.width)
             rowMaxHeight = max(rowMaxHeight, size.height)
         }
         if !rowItems.isEmpty {
