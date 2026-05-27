@@ -47,9 +47,9 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 7. AppSettings — last-active tab persistence
 
-- [ ] 7.1 Add `lastDashboardTab: DashboardTab` to `AppSettings.swift` (new `enum DashboardTab: String { case subscription, claudeCode }`)
-- [ ] 7.2 Default to `.subscription` when no prior value is stored
-- [ ] 7.3 Encode-on-write, decode-on-read with `subscription` fallback for unknown/corrupt values
+- [x] 7.1 Add `lastDashboardTab: DashboardTab` to `AppSettings.swift` (new top-level `enum DashboardTab: String { case subscription, claudeCode }`). NOTE: temporary duplication with `DashboardTabKey` in `DashboardView.swift` (same cases) — group 11 will consolidate when the proper TabView refactor lands
+- [x] 7.2 Default to `.subscription` when no prior value is stored
+- [x] 7.3 Encode-on-write, decode-on-read with `subscription` fallback for unknown/corrupt values. Tests: default-when-absent, write-then-read round-trip, corrupt-string fallback, unknown-future-case fallback. 4 tests, all pass
 
 ## 8. CCUsageStore (data layer)
 
