@@ -23,7 +23,7 @@
     <key>CFBundleIconFile</key>
     <string>TokenTrace</string>
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSPrincipalClass</key>

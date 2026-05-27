@@ -48,7 +48,7 @@ and refined UI"). No notice there.
   macOS 26 has it blacklisted (see "If menu bar icon disappears" below).
 - Self-signed cert in login keychain: `F690B9DA81D392695487D52D35F6B37E7A362495`
   ("LouisLocalSign"). Build script prefers it, falls back to ad-hoc.
-- Min macOS: **13.0** (SwiftUI Charts requirement).
+- Min macOS: **14.0** (SwiftUI Charts `chartXSelection` + clean dual-Y-axis for the Claude Code tab).
 - After rebuild, always `pkill -x TokenTrace` before `open` — `open` won't
   replace a running app of the same bundle ID.
 - Every rebuild invalidates Accessibility grant and prompts Keychain again.
