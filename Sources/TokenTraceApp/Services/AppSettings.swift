@@ -12,6 +12,18 @@ import OSLog
 ///     "Range selection persists across launches"). The Export sheet does
 ///     NOT persist its picker state by design (usage-export spec — every
 ///     open resets to fixed defaults).
+/// Which Dashboard tab the user had selected last; restored on launch.
+/// Persisted as the raw string in `AppSettings.lastDashboardTab`.
+///
+/// Note: a sibling enum `DashboardTabKey` exists locally in
+/// `DashboardView.swift` (added during the prototype phase). Both have the
+/// same string cases and will be unified when the proper TabView refactor
+/// lands in claude-code-usage group 11.
+enum DashboardTab: String, Codable, Sendable {
+    case subscription
+    case claudeCode
+}
+
 enum AppSettings {
     private static let defaults = UserDefaults.standard
     private static let log = Logger(subsystem: "dev.louisdeng.tokentrace", category: "AppSettings")
@@ -20,6 +32,10 @@ enum AppSettings {
         static let notificationsEnabled = "notificationsEnabled"
         static let openAtLoginEnabled = "openAtLoginEnabled"
         static let dashboardRangeSelection = "dashboardRangeSelection"
+        static let lastDashboardTab = "lastDashboardTab"
+        static let ccProjectNameDepth = "ccProjectNameDepth"
+        static let ccMergeWorktrees = "ccMergeWorktrees"
+        static let ccProjectWorkspaceRoot = "ccProjectWorkspaceRoot"
     }
 
     static var notificationsEnabled: Bool {
@@ -30,6 +46,79 @@ enum AppSettings {
     static var openAtLoginEnabled: Bool {
         get { defaults.bool(forKey: Key.openAtLoginEnabled) }
         set { defaults.set(newValue, forKey: Key.openAtLoginEnabled) }
+    }
+
+    /// How many trailing path components to use when synthesising a project's
+    /// display name from its `cwd`. Default `1` keeps labels compact
+    /// (e.g. `/Users/x/workspace/TokenTrace` → "TokenTrace"); set to `2` for
+    /// monorepo-style uniqueness ("workspace/TokenTrace"). User-set aliases
+    /// always override this.
+    static var ccProjectNameDepth: Int {
+        get {
+            let raw = defaults.integer(forKey: Key.ccProjectNameDepth)
+            return raw == 0 ? 1 : raw  // 0 == "never set"
+        }
+        set {
+            defaults.set(max(1, min(3, newValue)), forKey: Key.ccProjectNameDepth)
+        }
+    }
+
+    /// User's git workspace root (e.g. `~/workspace`). When non-empty AND
+    /// `ccMergeWorktrees` is on, any cwd that lives under this path folds
+    /// to `<root>/<first-segment>` — the project's repo root — regardless
+    /// of how deeply nested the cwd is. Much more general than pattern-
+    /// matching `.worktree(s)` / `.claude/worktrees` segments alone, and
+    /// catches arbitrary nesting (build dirs, scripts, agent worktrees,
+    /// etc.) for free. Cwds outside this root still fall back to the
+    /// segment-pattern matcher.
+    ///
+    /// Tilde is expanded at lookup time via `NSString.expandingTildeInPath`
+    /// so the stored value can be written user-friendly (`~/workspace`).
+    static var ccProjectWorkspaceRoot: String {
+        get { defaults.string(forKey: Key.ccProjectWorkspaceRoot) ?? "" }
+        set { defaults.set(newValue, forKey: Key.ccProjectWorkspaceRoot) }
+    }
+
+    /// Returns `ccProjectWorkspaceRoot` with `~` expanded and trailing slash
+    /// stripped, or `nil` if empty.
+    static var ccProjectWorkspaceRootExpanded: String? {
+        let raw = ccProjectWorkspaceRoot.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return nil }
+        let expanded = (raw as NSString).expandingTildeInPath
+        return expanded.hasSuffix("/") ? String(expanded.dropLast()) : expanded
+    }
+
+    /// When true (default), cwds containing a `.worktree` or `.worktrees`
+    /// path segment fold into the parent path, so a `repo/.worktree/branch`
+    /// worktree merges into `repo`'s aggregated row.
+    static var ccMergeWorktrees: Bool {
+        get {
+            // UserDefaults.bool defaults to false for missing keys, but we
+            // want "missing" → true. Probe for existence first.
+            if defaults.object(forKey: Key.ccMergeWorktrees) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Key.ccMergeWorktrees)
+        }
+        set {
+            defaults.set(newValue, forKey: Key.ccMergeWorktrees)
+        }
+    }
+
+    /// Last-active Dashboard tab. Missing or unrecognised values fall back to
+    /// `.subscription` (the original single-tab view). Stored as the raw
+    /// string so adding a new tab in the future is forward-compatible.
+    static var lastDashboardTab: DashboardTab {
+        get {
+            guard let raw = defaults.string(forKey: Key.lastDashboardTab),
+                  let tab = DashboardTab(rawValue: raw) else {
+                return .subscription
+            }
+            return tab
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Key.lastDashboardTab)
+        }
     }
 
     /// Last-used Dashboard range. Missing or undecodable values fall back to

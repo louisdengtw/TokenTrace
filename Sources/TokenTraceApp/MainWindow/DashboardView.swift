@@ -9,32 +9,25 @@ struct DashboardView: View {
     @State private var sevenDay: [UsageSample] = []
     @State private var sevenDaySonnet: [UsageSample] = []
     @State private var domain: ClosedRange<Date> = Date()...Date()
+    @State private var selectedTab: DashboardTab = AppSettings.lastDashboardTab
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            ScrollView {
-                VStack(spacing: 14) {
-                    ChartCard(
-                        title: "5-hour window",
-                        subtitle: "Rolling 5-hour usage · resets every 5h",
-                        samples: fiveHour,
-                        domain: domain
-                    )
-                    ChartCard(
-                        title: "7-day window",
-                        subtitle: usageManager.hasWeeklySonnet
-                            ? "Weekly usage · overall and Sonnet"
-                            : "Weekly usage · resets each Monday",
-                        samples: sevenDay,
-                        secondarySamples: usageManager.hasWeeklySonnet ? sevenDaySonnet : nil,
-                        secondaryLabel: "Sonnet",
-                        domain: domain
-                    )
-                }
-                .padding(18)
+            TabView(selection: $selectedTab) {
+                subscriptionContent
+                    .tabItem { Text("Subscription") }
+                    .tag(DashboardTab.subscription)
+                CCUsageView(
+                    domain: domain,
+                    ccStore: usageManager.ccStore,
+                    ccIngester: usageManager.ccIngester,
+                    usageStore: usageManager.store
+                )
+                    .tabItem { Text("Claude Code") }
+                    .tag(DashboardTab.claudeCode)
             }
         }
         .onAppear { reload() }
@@ -42,7 +35,44 @@ struct DashboardView: View {
             AppSettings.dashboardRangeSelection = newValue
             reload()
         }
+        .onChange(of: selectedTab) { newValue in
+            AppSettings.lastDashboardTab = newValue
+        }
         .onChange(of: usageManager.latestSample) { _ in reload() }
+    }
+
+    private var exportButtonLabel: String {
+        selectedTab == .claudeCode ? "Export Claude Code…" : "Export Report…"
+    }
+
+    private var exportButtonHelp: String {
+        selectedTab == .claudeCode
+            ? "Export the visible range as a CC project-breakdown report"
+            : "Export the visible range to a portable HTML or PDF report"
+    }
+
+    private var subscriptionContent: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                ChartCard(
+                    title: "5-hour window",
+                    subtitle: "Rolling 5-hour usage · resets every 5h",
+                    samples: fiveHour,
+                    domain: domain
+                )
+                ChartCard(
+                    title: "7-day window",
+                    subtitle: usageManager.hasWeeklySonnet
+                        ? "Weekly usage · overall and Sonnet"
+                        : "Weekly usage · resets each Monday",
+                    samples: sevenDay,
+                    secondarySamples: usageManager.hasWeeklySonnet ? sevenDaySonnet : nil,
+                    secondaryLabel: "Sonnet",
+                    domain: domain
+                )
+            }
+            .padding(18)
+        }
     }
 
     // MARK: - Toolbar
@@ -55,23 +85,26 @@ struct DashboardView: View {
                     .tracking(-0.1)
                 Spacer()
                 Button {
+                    // Both paths post the same notification; MainWindowContent
+                    // reads AppSettings.lastDashboardTab (kept in sync with
+                    // selectedTab via onChange) to dispatch to the right sheet.
                     NotificationCenter.default.post(name: .exportReportRequested, object: nil)
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 10, weight: .semibold))
-                        Text("Export Report…")
+                        Text(exportButtonLabel)
                     }
                     .fixedSize()
                 }
                 .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
-                .help("Export the visible range to a portable HTML report")
+                .help(exportButtonHelp)
             }
             HStack {
                 Spacer()
                 RangePickerView(
                     selection: $range,
-                    oldestSample: usageManager.store.oldestTimestamp()
+                    oldestSample: earliestDataAcrossSources
                 )
                 .fixedSize()
             }
@@ -93,12 +126,27 @@ struct DashboardView: View {
         let now = Date()
         let (from, to) = range.resolved(
             now: now,
-            oldestSample: usageManager.store.oldestTimestamp()
+            oldestSample: earliestDataAcrossSources
         )
         domain = from...to
         fiveHour       = usageManager.store.query(bucket: .fiveHour,       from: from, to: to)
         sevenDay       = usageManager.store.query(bucket: .sevenDay,       from: from, to: to)
         sevenDaySonnet = usageManager.store.query(bucket: .sevenDaySonnet, from: from, to: to)
+    }
+
+    /// The earlier of the subscription `samples` oldest timestamp and the
+    /// `cc_message` oldest timestamp, so the "All" preset spans both data
+    /// sources (per usage-dashboard spec scenario "CC data predates
+    /// subscription samples" and its mirror).
+    private var earliestDataAcrossSources: Date? {
+        let oldestSub = usageManager.store.oldestTimestamp()
+        let oldestCC  = usageManager.ccStore.oldestCCMessageTimestamp()
+        switch (oldestSub, oldestCC) {
+        case (nil, nil):              return nil
+        case (let x?, nil):           return x
+        case (nil, let x?):           return x
+        case (let a?, let b?):        return min(a, b)
+        }
     }
 }
 

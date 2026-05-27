@@ -6,9 +6,16 @@ struct MainWindowContent: View {
     @Environment(\.colorScheme) private var scheme
     @State private var sidebarCollapsed: Bool = false
     @State private var isExporting: Bool = false
+    @State private var isExportingCC: Bool = false
     @State private var quitHovered: Bool = false
 
     private var sidebarWidth: CGFloat { sidebarCollapsed ? 56 : 200 }
+
+    /// Reads `CFBundleShortVersionString` once at launch so the sidebar
+    /// version label tracks Info.plist instead of drifting (was hardcoded
+    /// `"v1.0"` through the v1.1 release; spotted during Group 19 prod smoke).
+    private static let appVersion: String =
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?"
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,14 +42,22 @@ struct MainWindowContent: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportReportRequested)) { _ in
-            // Reset & open. Per spec the sheet always opens to defaults — that
-            // is enforced inside ExportSheetView, but we also toggle here in
-            // case the user spammed the menu item to re-open it.
-            isExporting = false
-            isExporting = true
+            // Tab-aware dispatch: read the latest persisted tab. The "toggle
+            // off then on" pattern resets the sheet's state on re-open per
+            // spec (sheet defaults are stateless across opens).
+            if AppSettings.lastDashboardTab == .claudeCode {
+                isExportingCC = false
+                isExportingCC = true
+            } else {
+                isExporting = false
+                isExporting = true
+            }
         }
         .sheet(isPresented: $isExporting) {
             ExportSheetView(usageManager: usageManager)
+        }
+        .sheet(isPresented: $isExportingCC) {
+            CCExportSheetView(usageManager: usageManager)
         }
     }
 
@@ -81,7 +96,9 @@ struct MainWindowContent: View {
                     Text("TokenTrace")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(-0.08)
-                    Text(usageManager.hasWeeklySonnet ? "v1.0 · Pro+" : "v1.0")
+                    Text(usageManager.hasWeeklySonnet
+                         ? "v\(Self.appVersion) · Pro+"
+                         : "v\(Self.appVersion)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
