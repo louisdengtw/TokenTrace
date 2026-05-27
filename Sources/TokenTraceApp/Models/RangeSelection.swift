@@ -5,6 +5,7 @@ enum RangePreset: String, CaseIterable, Codable, Identifiable, Sendable {
     case last24h
     case last7d
     case last30d
+    case last90d
     case all
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum RangePreset: String, CaseIterable, Codable, Identifiable, Sendable {
         case .last24h: return "24h"
         case .last7d:  return "7d"
         case .last30d: return "30d"
+        case .last90d: return "90d"
         case .all:     return "All"
         }
     }
@@ -38,6 +40,8 @@ enum RangeSelection: Equatable, Sendable {
             return (now.addingTimeInterval(-7 * 86400), now)
         case .preset(.last30d):
             return (now.addingTimeInterval(-30 * 86400), now)
+        case .preset(.last90d):
+            return (now.addingTimeInterval(-90 * 86400), now)
         case .preset(.all):
             return (oldestSample ?? now.addingTimeInterval(-86400), now)
         case .custom(let from, let to):
@@ -53,6 +57,7 @@ enum RangeSelection: Equatable, Sendable {
         case .preset(.last24h): return "Trend across last 24 hours"
         case .preset(.last7d):  return "Trend across last 7 days"
         case .preset(.last30d): return "Trend across last 30 days"
+        case .preset(.last90d): return "Trend across last 90 days"
         case .preset(.all):     return "Trend across all time"
         case .custom(let from, let to):
             let fmt = DateFormatter()

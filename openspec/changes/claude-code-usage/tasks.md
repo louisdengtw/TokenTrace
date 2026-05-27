@@ -40,10 +40,10 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 6. Range chip — add 90d
 
-- [ ] 6.1 Add `case last90d` to `RangePreset` in `Models/RangeSelection.swift`, between `last30d` and `all`
-- [ ] 6.2 Extend `label` to return `"90d"`
-- [ ] 6.3 Extend `resolved(now:oldestSample:)` to return `now − 90·86400 ... now`
-- [ ] 6.4 Unit test `RangeSelectionTests`: `last90d` round-trips through `Codable`, resolves correctly, and decodes unchanged from a JSON value that omits it (older AppSettings payload)
+- [x] 6.1 Add `case last90d` to `RangePreset` in `Models/RangeSelection.swift`, between `last30d` and `all`
+- [x] 6.2 Extend `label` to return `"90d"`
+- [x] 6.3 Extend `resolved(now:oldestSample:)` to return `now − 90·86400 ... now`. Also extended `trendDescription` for completeness
+- [x] 6.4 Unit test `RangeSelectionTests`: `last90d` round-trips through `Codable`, resolves correctly, decodes unchanged from older AppSettings payloads that store `last24h/7d/30d/all`, and the picker's `.allCases` ordering is locked. 7 tests, all pass
 
 ## 7. AppSettings — last-active tab persistence
 
