@@ -5,13 +5,18 @@ your account's utilization on a cadence, stores it locally, and shows the
 trend over time — the history view that Claude itself doesn't surface.
 
 - Menu bar quick view: 5-hour / 7-day / 7-day Sonnet at a glance, color-coded.
-- Dashboard: trend charts with reset markers, hover crosshair, and a range
-  selector with chip presets (24h / 7d / 30d / All) plus custom From/To.
-- Export Report: produce a self-contained HTML report from your local data
-  (Dashboard toolbar → Export Report…, or File menu / ⌘E).
+- Dashboard with two tabs:
+  - **Subscription**: trend charts with reset markers, hover crosshair.
+  - **Claude Code**: per-project breakdown derived from your local
+    `~/.claude/projects/` transcripts, with a 5h subscription utilisation
+    overlay. Token counts only — message bodies are never read.
+- Range selector shared across tabs: chip presets (24h / 7d / 30d / 90d /
+  All) plus custom From/To.
+- Export Report: self-contained HTML or PDF, tab-aware (Dashboard toolbar
+  → Export Report… / Export Claude Code…, or File menu / ⌘E).
 - Persistent local SQLite store; nothing leaves your machine.
 - Threshold notifications when you're approaching session limits.
-- Native SwiftUI on macOS 13+.
+- Native SwiftUI on macOS 14+.
 
 ## Build
 

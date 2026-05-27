@@ -11,19 +11,20 @@ product, repo, and bundle ID are all `TokenTrace` / `dev.louisdeng.tokentrace`.
 
 ## Start here
 
-Read `openspec/changes/rewrite-as-claudeusage/` — that is the source of truth.
-The change directory name keeps the historical "rewrite-as-claudeusage" label
-because the project was originally framed as a rewrite of ClaudeUsageBar; the
-product was renamed to TokenTrace mid-development.
+Active in-flight change: `openspec/changes/claude-code-usage/`. Adds the Claude
+Code tab (transcript-derived usage analysis from `~/.claude/projects/`) and a
+tab-aware Export Report.
 
 | File | What |
 |---|---|
-| `proposal.md` | Why + scope + 6 capabilities |
-| `design.md` | Architecture decisions (Decision 1 has a 2026-05-07 amendment) |
+| `proposal.md` | Why + scope |
+| `design.md` | Architecture decisions |
 | `specs/<capability>/spec.md` | Per-capability requirements & scenarios |
-| `tasks.md` | 13 groups |
+| `tasks.md` | 19 groups; progress via `openspec status --change claude-code-usage` |
 
-Progress: `openspec status --change rewrite-as-claudeusage`.
+Earlier in-flight work is archived under `openspec/changes/archive/`:
+- `2026-05-07-rewrite-as-claudeusage` — original rewrite/rename (Decision 1 has a 2026-05-07 amendment)
+- `2026-05-13-cookie-import`, `2026-05-13-main-window-quit-affordance`, `2026-05-14-usage-export` — incrementals between then and now
 
 ## Salvage map (only one file is genuinely upstream-derived)
 
@@ -102,24 +103,87 @@ open /Applications/TokenTrace.app
 
 ## Current state
 
-- Most of v1 implemented (groups 1–9, plus the 12/13 design pivot work
-  added during exploration).
-- Verification group 10: 8/9 manual smoke tests passed; 10.8 (open at login
-  reboot test) outstanding.
-- Group 11 (publishing): not yet executed.
-- **`usage-export` change in flight** (branch `feat/usage-export`) — adds an
-  HTML report export and unifies the Dashboard's range selector to chip
-  presets + custom From/To. See `openspec/changes/usage-export/`.
+- v1 + `usage-export` shipped and archived. Subscription tab, menu bar
+  accessory, Keychain cookie, threshold notifications, HTML/PDF report
+  export, range chip + custom picker — all live.
+- **`claude-code-usage` change in flight** (branch `feat/claude-code-usage`).
+  Adds the Claude Code tab + tab-aware Export. Groups 1–17 done. Groups 18
+  (this doc update) + 19 (pre-PR review + production smoke) remain before
+  archive.
+- GitHub publishing (Group 11 of the original rewrite) still not done — no
+  remote yet.
 
 ## Export Report feature
 
-Open via Dashboard toolbar's "Export Report…" button, File → Export Report…,
-or ⌘E. Produces a self-contained HTML file with Chart.js inlined — opens
-offline in any browser. Bundled assets:
+Toolbar Export button + File menu + ⌘E. Dispatch is **tab-aware** —
+`MainWindowContent` reads `AppSettings.lastDashboardTab` on the
+`.exportReportRequested` notification:
 
-- `Sources/TokenTraceApp/Resources/chart.umd.min.js` (Chart.js 4.4.1, pinned)
-- `Sources/TokenTraceApp/Resources/report.html.template` (sentinel-token
-  template; substitutes happen in `Services/ReportGenerator.swift`)
+| Active tab | Sheet | Generator | Template |
+|---|---|---|---|
+| Subscription | `ExportSheetView` | `Services/ReportGenerator.swift` | `Resources/report.html.template` |
+| Claude Code | `CCExportSheetView` | `Services/CCReportGenerator.swift` | `Resources/cc-report.html.template` |
+
+Both produce a self-contained HTML or PDF (PDF flows through
+`PDFRenderer.renderHTMLToPDF`). Chart.js 4.4.1 is inlined from
+`Resources/chart.umd.min.js` — exported files open offline in any browser /
+PDF reader (verified by Network panel showing zero non-`file://` requests).
+Toolbar label flips between `Export Report…` and `Export Claude Code…`.
+
+## Claude Code tab
+
+Surfaces personal Claude Code (CLI) usage alongside the subscription view.
+Data source: `~/.claude/projects/<hyphenated-path>/<session>.jsonl` — Claude
+Code's transcript output. The ingester is at `Services/CCUsageIngester.swift`;
+the store is `Persistence/CCUsageStore.swift`.
+
+New tables (in the same `usage.sqlite`):
+
+| Table | What |
+|---|---|
+| `cc_message` | One row per assistant message. `uuid` PK dedups across mirrors. Token counts only — never stores message bodies. |
+| `cc_ingest_checkpoint` | Per-file `byte_offset` + `file_size` + `mtime` for incremental + truncation-safe re-scans. |
+| `project_alias` | Per-cwd display name override (set via the "Manage projects…" sheet). |
+
+### Privacy
+
+The JSONL parser uses a `Codable` projection (`Services/CCUsageIngester.swift`
+around line 213) that declares only `type` / `uuid` / `timestamp` / `cwd` /
+`sessionId` / `requestId` / `isSidechain` / `message.model` /
+`message.usage.*`. `message.content` is **never** in the projection —
+`JSONDecoder` reads past those bytes but never materialises them as Swift
+strings or `Data`. Locked by `CCUsageIngesterTests.testMessageContentNotPersisted`
+plus a source-wide grep that turns up zero `.content` accesses anywhere in
+`Sources/TokenTraceApp/`.
+
+### "Weighted token volume"
+
+The CC chart's left Y axis is **not** subscription quota — it's a relative
+attribution proxy derived from public Anthropic API pricing ratios
+(`Models/CCWeightedVolume.swift`):
+
+| Component | Weight |
+|---|---|
+| `input_tokens` | ×1.0 |
+| `output_tokens` | ×5.0 |
+| `cache_creation_input_tokens` | ×1.25 |
+| `cache_read_input_tokens` | ×0.1 |
+
+Used to compare projects within a range. The right-axis dotted amber 5h util
+line is the only quota-aware signal on the CC chart. `seven_day` is
+intentionally NOT overlaid — the smooth ramp adds nothing on top of the 5h
+sawtooth plus the Peak 5h Util stat in the stats strip, and crowds the right
+axis. The info-circle affordance in the CC tab header repeats this caveat
+to the user.
+
+### Worktree fold
+
+cwds containing a `.worktree`, `.worktrees`, or `.claude/worktrees` segment
+fold into the parent repo's series so agent worktrees and side-by-side
+branches don't fragment the project breakdown. There is also a workspace
+root setting (Settings → Claude Code → `e.g. ~/workspace`); when set, any
+cwd under that root folds to `<root>/<first-segment>` regardless of nesting
+depth — handy for build dirs or scripts that sit alongside the repo.
 
 ## API endpoints used (for reference)
 

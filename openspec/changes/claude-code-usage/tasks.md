@@ -212,9 +212,9 @@ Coverage legend: ✓ auto-tested · ◇ source-audited · ⊘ deferred to live s
 
 ## 18. Documentation
 
-- [ ] 18.1 Add a brief CC-tab note to `CLAUDE.md` (where `~/.claude/projects/` lives, the privacy guarantee, the "weighted token volume" naming, the tab-aware Export behaviour)
-- [ ] 18.2 Update the "Min macOS" line in `CLAUDE.md` to 14.0
-- [ ] 18.3 If README mentions features, add the Claude Code tab + tab-aware Export to the list
+- [x] 18.1 CLAUDE.md restructured: refreshed the "Start here" pointer (now points at `claude-code-usage/`, archived changes listed); refreshed "Current state"; expanded "Export Report feature" into a tab-aware dispatch table; added a new "Claude Code tab" section covering data source, the three new tables, the privacy projection, the weighted-token-volume ratios + 7d-omission rationale, and worktree-fold + workspace-root behaviours
+- [x] 18.2 CLAUDE.md "Min macOS: **14.0**" line was already correct from earlier in this change (line ~51); no edit needed beyond audit
+- [x] 18.3 README features list updated: added the Dashboard 2-tab structure (Subscription / Claude Code), added `90d` to the chip list, expanded Export Report to "HTML or PDF, tab-aware", bumped "macOS 13+" → "macOS 14+"
 
 ## 19. Pre-PR review
 
