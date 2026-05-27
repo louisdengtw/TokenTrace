@@ -35,6 +35,7 @@ enum AppSettings {
         static let lastDashboardTab = "lastDashboardTab"
         static let ccProjectNameDepth = "ccProjectNameDepth"
         static let ccMergeWorktrees = "ccMergeWorktrees"
+        static let ccProjectWorkspaceRoot = "ccProjectWorkspaceRoot"
     }
 
     static var notificationsEnabled: Bool {
@@ -60,6 +61,31 @@ enum AppSettings {
         set {
             defaults.set(max(1, min(3, newValue)), forKey: Key.ccProjectNameDepth)
         }
+    }
+
+    /// User's git workspace root (e.g. `~/workspace`). When non-empty AND
+    /// `ccMergeWorktrees` is on, any cwd that lives under this path folds
+    /// to `<root>/<first-segment>` — the project's repo root — regardless
+    /// of how deeply nested the cwd is. Much more general than pattern-
+    /// matching `.worktree(s)` / `.claude/worktrees` segments alone, and
+    /// catches arbitrary nesting (build dirs, scripts, agent worktrees,
+    /// etc.) for free. Cwds outside this root still fall back to the
+    /// segment-pattern matcher.
+    ///
+    /// Tilde is expanded at lookup time via `NSString.expandingTildeInPath`
+    /// so the stored value can be written user-friendly (`~/workspace`).
+    static var ccProjectWorkspaceRoot: String {
+        get { defaults.string(forKey: Key.ccProjectWorkspaceRoot) ?? "" }
+        set { defaults.set(newValue, forKey: Key.ccProjectWorkspaceRoot) }
+    }
+
+    /// Returns `ccProjectWorkspaceRoot` with `~` expanded and trailing slash
+    /// stripped, or `nil` if empty.
+    static var ccProjectWorkspaceRootExpanded: String? {
+        let raw = ccProjectWorkspaceRoot.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty { return nil }
+        let expanded = (raw as NSString).expandingTildeInPath
+        return expanded.hasSuffix("/") ? String(expanded.dropLast()) : expanded
     }
 
     /// When true (default), cwds containing a `.worktree` or `.worktrees`

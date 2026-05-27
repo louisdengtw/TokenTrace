@@ -192,7 +192,7 @@ final class CCUsageStoreTests: XCTestCase {
 
     func testSynthesisedLabelAtDepthTwo() {
         _ = store.insertMessages([msg("x", cwd: "/Users/x/workspace/Foo", day: 0)])
-        let options = CCUsageStore.QueryOptions(displayNameDepth: 2, mergeWorktrees: true)
+        let options = CCUsageStore.QueryOptions(displayNameDepth: 2, mergeWorktrees: true, workspaceRoot: nil)
         let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: options)
         XCTAssertEqual(result.first?.displayName, "workspace/Foo")
     }
@@ -207,20 +207,23 @@ final class CCUsageStoreTests: XCTestCase {
     // MARK: - Worktree fold
 
     func testWorktreesMergeIntoParentByDefault() {
-        // Three sources for the same logical project: the parent itself, a
-        // .worktree subdirectory, and a .worktrees agent worktree.
+        // Four sources for the same logical project: the parent itself, a
+        // .worktree subdirectory, a .worktrees agent worktree, AND a
+        // .claude/worktrees/agent-<uuid> path (Claude Code agent task
+        // system's worktree convention).
         _ = store.insertMessages([
             msg("a", cwd: "/Users/x/repo", day: 0, input: 100),
             msg("b", cwd: "/Users/x/repo/.worktree/branch", day: 1, input: 200),
             msg("c", cwd: "/Users/x/repo/.worktrees/agent-uuid", day: 2, input: 300),
+            msg("d", cwd: "/Users/x/repo/.claude/worktrees/agent-aaaa", day: 3, input: 400),
         ])
         // Default options have mergeWorktrees = true.
-        let result = store.tokensByProject(from: day(0), to: day(2), bucket: .day)
-        XCTAssertEqual(result.count, 1, "all three cwds should fold into one row")
+        let result = store.tokensByProject(from: day(0), to: day(3), bucket: .day)
+        XCTAssertEqual(result.count, 1, "all four cwds should fold into one row")
         let s = result[0]
         XCTAssertEqual(s.displayName, "repo", "displayName uses the parent's last component")
         let totalInput = s.buckets.reduce(0) { $0 + $1.inputTokens }
-        XCTAssertEqual(totalInput, 600, "summed across three sources")
+        XCTAssertEqual(totalInput, 1000, "summed across four sources")
     }
 
     func testWorktreesKeepSeparateWhenDisabled() {
@@ -228,9 +231,51 @@ final class CCUsageStoreTests: XCTestCase {
             msg("a", cwd: "/Users/x/repo", day: 0),
             msg("b", cwd: "/Users/x/repo/.worktree/branch", day: 0),
         ])
-        let opts = CCUsageStore.QueryOptions(displayNameDepth: 1, mergeWorktrees: false)
+        let opts = CCUsageStore.QueryOptions(displayNameDepth: 1, mergeWorktrees: false, workspaceRoot: nil)
         let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: opts)
         XCTAssertEqual(result.count, 2, "worktree fold disabled → separate rows")
+    }
+
+    func testWorkspaceRootFoldsAnyNestedPath() {
+        // Any cwd under the configured workspace root folds to <root>/<first-segment>,
+        // regardless of whether the nested portion looks like a worktree.
+        _ = store.insertMessages([
+            msg("a", cwd: "/Users/x/workspace/Foo",                                 day: 0, input: 100),
+            msg("b", cwd: "/Users/x/workspace/Foo/scripts/deploy",                  day: 0, input: 200),
+            msg("c", cwd: "/Users/x/workspace/Foo/.worktree/branch",                day: 0, input: 300),
+            msg("d", cwd: "/Users/x/workspace/Foo/.claude/worktrees/agent-abc",     day: 0, input: 400),
+            msg("e", cwd: "/Users/x/workspace/Bar/anything",                        day: 0, input: 50),
+            msg("f", cwd: "/opt/cisco/anyconnect/bin",                              day: 0, input: 10),
+        ])
+        let opts = CCUsageStore.QueryOptions(
+            displayNameDepth: 1,
+            mergeWorktrees: true,
+            workspaceRoot: "/Users/x/workspace"
+        )
+        let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: opts)
+        // Expected: Foo (folds a/b/c/d), Bar (folds e), and the /opt path
+        // unchanged because it's outside the workspace root.
+        XCTAssertEqual(result.count, 3)
+        let foo = try? XCTUnwrap(result.first { $0.displayName == "Foo" })
+        XCTAssertEqual(foo?.buckets.reduce(0) { $0 + $1.inputTokens }, 1000)
+        let bar = try? XCTUnwrap(result.first { $0.displayName == "Bar" })
+        XCTAssertEqual(bar?.buckets.reduce(0) { $0 + $1.inputTokens }, 50)
+    }
+
+    func testWorkspaceRootPathExactlyMatchesProjectRoot() {
+        // A cwd that IS the project root (one segment past the workspace
+        // root, no deeper path) stays as itself.
+        _ = store.insertMessages([
+            msg("a", cwd: "/Users/x/workspace/Foo", day: 0, input: 100),
+        ])
+        let opts = CCUsageStore.QueryOptions(
+            displayNameDepth: 1,
+            mergeWorktrees: true,
+            workspaceRoot: "/Users/x/workspace"
+        )
+        let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: opts)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].cwd, "/Users/x/workspace/Foo")
     }
 
     func testWorktreeFoldRespectsAliasOnParent() {

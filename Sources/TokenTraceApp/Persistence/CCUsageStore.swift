@@ -71,12 +71,24 @@ final class CCUsageStore {
         /// 2 → `"workspace/TokenTrace"`.
         let displayNameDepth: Int
 
-        /// When true, cwds containing a `.worktree` or `.worktrees` path
-        /// segment fold into the parent path during aggregation, so all
-        /// worktrees of a repo share one row.
+        /// When true, cwds containing a `.worktree` / `.worktrees` /
+        /// `.claude/worktrees` path segment fold into the parent path
+        /// during aggregation, so all worktrees of a repo share one row.
+        /// Also enables the `workspaceRoot` short-circuit below.
         let mergeWorktrees: Bool
 
-        static let `default` = QueryOptions(displayNameDepth: 1, mergeWorktrees: true)
+        /// Optional `~`-expanded workspace root. When set AND
+        /// `mergeWorktrees` is on, any cwd under this root folds to
+        /// `<root>/<first-segment>` regardless of nesting depth. Catches
+        /// every kind of nested directory (worktrees, build dirs, scripts,
+        /// `.claude/...`) for free without pattern-matching the segment.
+        let workspaceRoot: String?
+
+        static let `default` = QueryOptions(
+            displayNameDepth: 1,
+            mergeWorktrees: true,
+            workspaceRoot: nil
+        )
     }
 
     // MARK: - Lifecycle
@@ -247,12 +259,13 @@ final class CCUsageStore {
 
         if perCwd.isEmpty { return [] }
 
-        // Optional worktree fold: cwds with a `.worktree` / `.worktrees`
-        // segment collapse to the parent path. Done before alias lookup so
-        // an alias set on the parent applies to all its worktrees.
+        // Optional worktree fold: cwds with a `.worktree` / `.worktrees` /
+        // `.claude/worktrees` segment, or any cwd nested under a configured
+        // workspace root, collapse to the parent path. Done before alias
+        // lookup so an alias set on the parent applies to all its worktrees.
         var perEffectiveCwd: [String: (representativeCwd: String, buckets: [Int64: ProjectBucket])] = [:]
         for (cwd, buckets) in perCwd {
-            let effective = options.mergeWorktrees ? normaliseForWorktree(cwd) : cwd
+            let effective = options.mergeWorktrees ? normaliseForWorktree(cwd, options: options) : cwd
             if var existing = perEffectiveCwd[effective] {
                 for (ts, bkt) in buckets {
                     if let prev = existing.buckets[ts] {
@@ -366,23 +379,60 @@ final class CCUsageStore {
         return comps.suffix(d).joined(separator: "/")
     }
 
-    /// Strip a trailing `.worktree/<branch>` or `.worktrees/<id>` from `cwd`,
-    /// returning the parent path. Pathological cases (`.worktree` is the
-    /// first component, leaving an empty parent) keep the original cwd.
-    private func normaliseForWorktree(_ cwd: String) -> String {
+    /// Strip a worktree segment from `cwd`, returning the parent repo path.
+    ///
+    /// Resolution order:
+    ///   1. If `options.workspaceRoot` is set and `cwd` lives under it,
+    ///      fold to `<root>/<first-segment>` — the project's repo root.
+    ///      Catches arbitrary nesting (worktrees, build dirs, scripts).
+    ///   2. Single-segment patterns: `.worktree` and `.worktrees`.
+    ///   3. Two-segment pattern: `.claude/worktrees` (Claude Code agent
+    ///      task system convention).
+    ///
+    /// Pathological cases (the worktree segment is the first component of
+    /// the path, leaving an empty parent) keep the original cwd unchanged.
+    private func normaliseForWorktree(_ cwd: String, options: QueryOptions) -> String {
+        // 1. Workspace-root short-circuit.
+        if let root = options.workspaceRoot, !root.isEmpty {
+            let prefix = root + "/"
+            if cwd.hasPrefix(prefix) {
+                let tail = cwd.dropFirst(prefix.count)
+                if let slash = tail.firstIndex(of: "/") {
+                    let projectName = tail[..<slash]
+                    if !projectName.isEmpty {
+                        return root + "/" + String(projectName)
+                    }
+                }
+                // No deeper path; the cwd IS the project root itself.
+                return cwd
+            }
+        }
+
         let comps = cwd.split(separator: "/", omittingEmptySubsequences: false)
-        guard let idx = comps.firstIndex(where: { $0 == ".worktree" || $0 == ".worktrees" }) else {
-            return cwd
+
+        // 2. Single-segment patterns: `.worktree` and `.worktrees`.
+        if let idx = comps.firstIndex(where: { $0 == ".worktree" || $0 == ".worktrees" }) {
+            if let parent = nonEmptyParent(comps, before: idx) {
+                return parent
+            }
         }
-        let parentComps = comps[..<idx]
-        // For an absolute path like `/Users/x/foo/.worktree/branch`, the
-        // first component (before the leading `/`) is empty and parentComps
-        // joins to `/Users/x/foo`. For a degenerate `.worktree/...` (no
-        // parent), keep the original cwd.
-        let parent = parentComps.joined(separator: "/")
-        if parent.isEmpty || parent == "/" {
-            return cwd
+
+        // 3. Two-segment pattern: `.claude/worktrees` (consecutive). Fold
+        //    to the parent of `.claude`, i.e. the repo root.
+        if let dotClaudeIdx = comps.firstIndex(of: ".claude"),
+           comps.index(after: dotClaudeIdx) < comps.endIndex,
+           comps[comps.index(after: dotClaudeIdx)] == "worktrees" {
+            if let parent = nonEmptyParent(comps, before: dotClaudeIdx) {
+                return parent
+            }
         }
+
+        return cwd
+    }
+
+    private func nonEmptyParent(_ comps: [Substring], before idx: Int) -> String? {
+        let parent = comps[..<idx].joined(separator: "/")
+        if parent.isEmpty || parent == "/" { return nil }
         return parent
     }
 
@@ -404,6 +454,10 @@ final class CCUsageStore {
         to: Date,
         includeWorktrees: Bool = true
     ) -> [(model: String, weighted: Double)] {
+        // Universal descendant match `<cwd>/%` captures every nested path:
+        // `.worktree(s)`, `.claude/worktrees`, workspace-root descendants,
+        // and any other nesting. Replaces the previous two specific LIKE
+        // patterns which missed everything else.
         let sql: String
         if includeWorktrees {
             sql = """
@@ -413,10 +467,8 @@ final class CCUsageStore {
                       + cache_creation_tokens * 1.25
                       + cache_read_tokens     * 0.1 )
             FROM cc_message
-            WHERE (cwd = ?1
-                   OR cwd LIKE ?2
-                   OR cwd LIKE ?3)
-              AND ts >= ?4 AND ts <= ?5
+            WHERE (cwd = ?1 OR cwd LIKE ?2)
+              AND ts >= ?3 AND ts <= ?4
             GROUP BY model
             ORDER BY 2 DESC;
             """
@@ -428,7 +480,7 @@ final class CCUsageStore {
                       + cache_creation_tokens * 1.25
                       + cache_read_tokens     * 0.1 )
             FROM cc_message
-            WHERE cwd = ?1 AND ts >= ?4 AND ts <= ?5
+            WHERE cwd = ?1 AND ts >= ?3 AND ts <= ?4
             GROUP BY model
             ORDER BY 2 DESC;
             """
@@ -439,11 +491,10 @@ final class CCUsageStore {
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_text (stmt, 1, cwd, -1, SQLITE_TRANSIENT)
         if includeWorktrees {
-            sqlite3_bind_text(stmt, 2, cwd + "/.worktree/%",  -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 3, cwd + "/.worktrees/%", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, cwd + "/%", -1, SQLITE_TRANSIENT)
         }
-        sqlite3_bind_int64(stmt, 4, sqlite3_int64(from.timeIntervalSince1970))
-        sqlite3_bind_int64(stmt, 5, sqlite3_int64(to.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, 3, sqlite3_int64(from.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, 4, sqlite3_int64(to.timeIntervalSince1970))
 
         var out: [(model: String, weighted: Double)] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -565,6 +616,18 @@ final class CCUsageStore {
     }
 
     // MARK: - Observed cwds (task 8.9)
+
+    /// Distinct cwds after worktree fold — the list the alias sheet should
+    /// show so users set aliases on the parent path (not on individual
+    /// `.worktree(s)` / `.claude/worktrees` / workspace-root descendants
+    /// that are folded away during aggregation). When fold is disabled in
+    /// `options`, returns the raw cwds.
+    func effectiveCwds(options: QueryOptions) -> [String] {
+        let raw = observedCwds()
+        guard options.mergeWorktrees else { return raw }
+        let folded = Set(raw.map { normaliseForWorktree($0, options: options) })
+        return folded.sorted()
+    }
 
     func observedCwds() -> [String] {
         let sql = "SELECT DISTINCT cwd FROM cc_message ORDER BY cwd;"

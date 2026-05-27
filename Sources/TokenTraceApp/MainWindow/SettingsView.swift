@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var openAtLoginErrorMessage: String?
     @State private var ccProjectNameDepth = AppSettings.ccProjectNameDepth
     @State private var ccMergeWorktrees = AppSettings.ccMergeWorktrees
+    @State private var ccProjectWorkspaceRoot = AppSettings.ccProjectWorkspaceRoot
 
     @Environment(\.openURL) private var openURL
 
@@ -50,9 +51,22 @@ struct SettingsView: View {
                 .onChange(of: ccMergeWorktrees) { newValue in
                     AppSettings.ccMergeWorktrees = newValue
                 }
-            Text("Folds cwds containing a `.worktree` or `.worktrees` segment (e.g. agent worktrees, side-by-side branches) into the parent repo's row in the project breakdown.")
+            Text("Folds cwds containing a `.worktree` / `.worktrees` / `.claude/worktrees` segment (e.g. agent worktrees, side-by-side branches) into the parent repo's row in the project breakdown.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("e.g. ~/workspace", text: $ccProjectWorkspaceRoot, onCommit: {
+                    AppSettings.ccProjectWorkspaceRoot = ccProjectWorkspaceRoot
+                })
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: ccProjectWorkspaceRoot) { newValue in
+                    AppSettings.ccProjectWorkspaceRoot = newValue
+                }
+                Text("Optional: your git workspace root. Any cwd under this path folds to `<root>/<first-segment>`, treating that segment as the project — catches arbitrary nesting (build dirs, scripts, agent worktrees) regardless of folder name. Leave blank to rely on the segment patterns above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Text("Changes apply on the next Refresh or range change in the Claude Code tab.")
                 .font(.caption)

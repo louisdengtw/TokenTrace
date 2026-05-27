@@ -67,7 +67,8 @@ struct CCReportGenerator {
 
         let options = CCUsageStore.QueryOptions(
             displayNameDepth: AppSettings.ccProjectNameDepth,
-            mergeWorktrees: AppSettings.ccMergeWorktrees
+            mergeWorktrees: AppSettings.ccMergeWorktrees,
+            workspaceRoot: AppSettings.ccProjectWorkspaceRootExpanded
         )
         let rawProjects = ccStore.tokensByProject(from: start, to: end, bucket: bucket, options: options)
         let series = groupTopN(rawProjects, n: Self.maxIndividualProjects)

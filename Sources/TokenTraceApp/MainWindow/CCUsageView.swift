@@ -21,6 +21,7 @@ struct CCUsageView: View {
     @State private var aggregates: [ProjectAggregate] = []
     @State private var fiveHour: [UsageSample] = []
     @State private var hoveredRowCwd: String? = nil
+    @State private var showingAliasSheet: Bool = false
 
     /// At most this many distinct projects are shown individually. Everything
     /// past it collapses into a single "Other (N)" synthesised series. Caps
@@ -92,7 +93,8 @@ struct CCUsageView: View {
         // Refresh).
         let options = CCUsageStore.QueryOptions(
             displayNameDepth: AppSettings.ccProjectNameDepth,
-            mergeWorktrees:   AppSettings.ccMergeWorktrees
+            mergeWorktrees:   AppSettings.ccMergeWorktrees,
+            workspaceRoot:    AppSettings.ccProjectWorkspaceRootExpanded
         )
         let raw = ccStore.tokensByProject(
             from: domain.lowerBound,
@@ -236,6 +238,9 @@ struct CCUsageView: View {
         }
         .onAppear { reloadCaches() }
         .onChange(of: domain) { _ in reloadCaches() }
+        .sheet(isPresented: $showingAliasSheet, onDismiss: { reloadCaches() }) {
+            ProjectAliasSheet(ccStore: ccStore)
+        }
     }
 
     // MARK: - Header
@@ -247,12 +252,13 @@ struct CCUsageView: View {
                 .tracking(-0.06)
             Spacer()
             refreshButton
-            Button { } label: {
+            Button {
+                showingAliasSheet = true
+            } label: {
                 Text("Manage projects…").fixedSize()
             }
             .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
-            .disabled(true)
-            .help("Set per-project display aliases (sheet built in claude-code-usage group 14)")
+            .help("Set per-project display aliases")
 
             Image(systemName: "info.circle")
                 .font(.system(size: 11))

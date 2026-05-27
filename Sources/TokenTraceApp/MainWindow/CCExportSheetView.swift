@@ -47,7 +47,8 @@ struct CCExportSheetView: View {
     private var observedCwdsInRange: [String] {
         let options = CCUsageStore.QueryOptions(
             displayNameDepth: AppSettings.ccProjectNameDepth,
-            mergeWorktrees: AppSettings.ccMergeWorktrees
+            mergeWorktrees: AppSettings.ccMergeWorktrees,
+            workspaceRoot: AppSettings.ccProjectWorkspaceRootExpanded
         )
         let series = ccStore.tokensByProject(
             from: resolvedRange.start,
