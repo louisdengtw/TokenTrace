@@ -9,32 +9,25 @@ struct DashboardView: View {
     @State private var sevenDay: [UsageSample] = []
     @State private var sevenDaySonnet: [UsageSample] = []
     @State private var domain: ClosedRange<Date> = Date()...Date()
+    @State private var selectedTab: DashboardTabKey = .subscription
+    @State private var showingCCExport: Bool = false
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            ScrollView {
-                VStack(spacing: 14) {
-                    ChartCard(
-                        title: "5-hour window",
-                        subtitle: "Rolling 5-hour usage · resets every 5h",
-                        samples: fiveHour,
-                        domain: domain
-                    )
-                    ChartCard(
-                        title: "7-day window",
-                        subtitle: usageManager.hasWeeklySonnet
-                            ? "Weekly usage · overall and Sonnet"
-                            : "Weekly usage · resets each Monday",
-                        samples: sevenDay,
-                        secondarySamples: usageManager.hasWeeklySonnet ? sevenDaySonnet : nil,
-                        secondaryLabel: "Sonnet",
-                        domain: domain
-                    )
+            if isDevBuild {
+                TabView(selection: $selectedTab) {
+                    subscriptionContent
+                        .tabItem { Text("Subscription") }
+                        .tag(DashboardTabKey.subscription)
+                    CCUsageView(domain: domain)
+                        .tabItem { Text("Claude Code") }
+                        .tag(DashboardTabKey.claudeCode)
                 }
-                .padding(18)
+            } else {
+                subscriptionContent
             }
         }
         .onAppear { reload() }
@@ -43,6 +36,51 @@ struct DashboardView: View {
             reload()
         }
         .onChange(of: usageManager.latestSample) { _ in reload() }
+        .sheet(isPresented: $showingCCExport) {
+            CCExportSheetView()
+        }
+    }
+
+    // The TabView wrapper is gated behind the `.dev` bundle ID so the
+    // production build is untouched while the Claude Code tab is still
+    // in prototype form. Removed when claude-code-usage group 11 lands
+    // the proper TabView refactor.
+    private var isDevBuild: Bool {
+        Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true
+    }
+
+    private var exportButtonLabel: String {
+        (isDevBuild && selectedTab == .claudeCode) ? "Export Claude Code…" : "Export Report…"
+    }
+
+    private var exportButtonHelp: String {
+        (isDevBuild && selectedTab == .claudeCode)
+            ? "Export the visible range as a CC project-breakdown report"
+            : "Export the visible range to a portable HTML or PDF report"
+    }
+
+    private var subscriptionContent: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                ChartCard(
+                    title: "5-hour window",
+                    subtitle: "Rolling 5-hour usage · resets every 5h",
+                    samples: fiveHour,
+                    domain: domain
+                )
+                ChartCard(
+                    title: "7-day window",
+                    subtitle: usageManager.hasWeeklySonnet
+                        ? "Weekly usage · overall and Sonnet"
+                        : "Weekly usage · resets each Monday",
+                    samples: sevenDay,
+                    secondarySamples: usageManager.hasWeeklySonnet ? sevenDaySonnet : nil,
+                    secondaryLabel: "Sonnet",
+                    domain: domain
+                )
+            }
+            .padding(18)
+        }
     }
 
     // MARK: - Toolbar
@@ -55,17 +93,21 @@ struct DashboardView: View {
                     .tracking(-0.1)
                 Spacer()
                 Button {
-                    NotificationCenter.default.post(name: .exportReportRequested, object: nil)
+                    if isDevBuild && selectedTab == .claudeCode {
+                        showingCCExport = true
+                    } else {
+                        NotificationCenter.default.post(name: .exportReportRequested, object: nil)
+                    }
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 10, weight: .semibold))
-                        Text("Export Report…")
+                        Text(exportButtonLabel)
                     }
                     .fixedSize()
                 }
                 .buttonStyle(PillButtonStyle(variant: .standard, size: .small))
-                .help("Export the visible range to a portable HTML report")
+                .help(exportButtonHelp)
             }
             HStack {
                 Spacer()
@@ -402,6 +444,13 @@ private func findNearest(to target: Date, in samples: [UsageSample]) -> UsageSam
     return samples.min(by: {
         abs($0.ts.timeIntervalSince(target)) < abs($1.ts.timeIntervalSince(target))
     })
+}
+
+// Identifier for the two-tab dev-build layout. Stored on a local @State today;
+// will be persisted via AppSettings.lastDashboardTab in claude-code-usage group 11.
+enum DashboardTabKey: String, Hashable {
+    case subscription
+    case claudeCode
 }
 
 private extension View {
