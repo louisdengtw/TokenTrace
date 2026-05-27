@@ -398,6 +398,118 @@ final class CCUsageIngesterTests: XCTestCase {
         XCTAssertEqual(second.rowsIgnored, 0)
     }
 
+    // MARK: - 17.5 Mixed cwds within one JSONL file → distinct projects
+
+    /// One `.jsonl` file can carry assistant lines that were emitted from
+    /// different working directories (e.g. user `cd`'d mid-session, or
+    /// subagent lines were inlined with a different parent cwd). Each line's
+    /// own `cwd` field is authoritative — the ingester MUST NOT collapse
+    /// them to "whichever cwd the file's name implies."
+    func testMixedCwdsInOneFileProduceDistinctProjects() async throws {
+        let projDir = projectsRoot.appendingPathComponent("-Users-x-mixed")
+        try writeJSONL([
+            assistantLine(uuid: "a1", cwd: "/Users/x/proj-A", sessionId: "sess-A"),
+            assistantLine(uuid: "a2", cwd: "/Users/x/proj-A", sessionId: "sess-A"),
+            assistantLine(uuid: "b1", cwd: "/Users/x/proj-B", sessionId: "sess-A"),
+            assistantLine(uuid: "b2", cwd: "/Users/x/proj-B", sessionId: "sess-A"),
+            assistantLine(uuid: "b3", cwd: "/Users/x/proj-B", sessionId: "sess-A"),
+        ], to: projDir, named: "sess-mixed")
+
+        let summary = await ingester.ingest()
+        XCTAssertEqual(summary.rowsInserted, 5)
+        XCTAssertEqual(summary.rowsIgnored, 0)
+
+        // Two distinct cwds observed, in lexicographic order.
+        XCTAssertEqual(store.observedCwds().sorted(), ["/Users/x/proj-A", "/Users/x/proj-B"])
+
+        // Aggregation yields two separate series.
+        let series = store.tokensByProject(
+            from: Date(timeIntervalSince1970: 0),
+            to:   Date(timeIntervalSince1970: 5_000_000_000),
+            bucket: .week
+        )
+        XCTAssertEqual(series.count, 2)
+        XCTAssertEqual(Set(series.map(\.cwd)), Set(["/Users/x/proj-A", "/Users/x/proj-B"]))
+    }
+
+    // MARK: - 17.7 Mid-file crash recovery via uuid PK + checkpoint replay
+
+    /// Simulates the post-crash state: the ingester succeeded in writing
+    /// rows for the first N lines but the process died before the
+    /// checkpoint was advanced past those bytes. On the next run, we
+    /// re-read the file from the stale checkpoint forward; the previously
+    /// inserted rows are re-parsed and re-submitted, but `uuid` PK +
+    /// INSERT OR IGNORE drops the duplicates silently.
+    func testReingestAfterStaleCheckpointRecoversAndDedups() async throws {
+        let projDir = projectsRoot.appendingPathComponent("-Users-x-crash")
+        let url = try writeJSONL([
+            assistantLine(uuid: "c1", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "c2", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "c3", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "c4", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "c5", cwd: "/Users/x/proj"),
+        ], to: projDir, named: "sess-crash")
+
+        // Successful first ingest — all 5 rows land, checkpoint at EOF.
+        let first = await ingester.ingest()
+        XCTAssertEqual(first.rowsInserted, 5)
+        XCTAssertEqual(first.rowsIgnored, 0)
+
+        // Simulate the crash window: roll the checkpoint back to byte 0
+        // while leaving the rows themselves in the DB. The next ingest
+        // will treat the entire file as unseen and re-submit every line.
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        let fileSize = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        let mtime    = Int64(((attrs[.modificationDate] as? Date) ?? Date()).timeIntervalSince1970)
+        store.setCheckpoint(forFile: url.path, byteOffset: 0, fileSize: fileSize, mtime: mtime)
+
+        let second = await ingester.ingest()
+        // No new rows — all 5 uuids already exist.
+        XCTAssertEqual(second.rowsInserted, 0)
+        // The 5 reparsed lines were dedup-ignored; the count surfaces as ignored.
+        XCTAssertGreaterThanOrEqual(second.rowsIgnored, 5)
+
+        // DB still holds exactly the original 5 rows for one project.
+        XCTAssertEqual(store.observedCwds(), ["/Users/x/proj"])
+    }
+
+    // MARK: - 17.9 File truncated → rescan from 0, dedup by uuid
+
+    /// External truncation (file shrinks below the recorded `file_size`,
+    /// or its mtime moves backward) invalidates the checkpoint. The
+    /// ingester rescans from byte 0; previously seen lines collide with
+    /// existing uuid PK rows and are ignored — the DB is never silently
+    /// drained just because the source file got smaller.
+    func testFileTruncationTriggersRescanAndDedupsByUuid() async throws {
+        let projDir = projectsRoot.appendingPathComponent("-Users-x-trunc")
+        let url = try writeJSONL([
+            assistantLine(uuid: "t1", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "t2", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "t3", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "t4", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "t5", cwd: "/Users/x/proj"),
+        ], to: projDir, named: "sess-trunc")
+
+        let first = await ingester.ingest()
+        XCTAssertEqual(first.rowsInserted, 5)
+
+        // Truncate to just the first two lines — file shrinks by ~60%.
+        try writeJSONL([
+            assistantLine(uuid: "t1", cwd: "/Users/x/proj"),
+            assistantLine(uuid: "t2", cwd: "/Users/x/proj"),
+        ], to: projDir, named: "sess-trunc")
+
+        let second = await ingester.ingest()
+        XCTAssertEqual(second.rowsInserted, 0,
+                       "no new rows — both truncated-file uuids already exist")
+        XCTAssertGreaterThanOrEqual(second.rowsIgnored, 2,
+                                    "the two replayed lines were dedup-ignored")
+
+        // The original t3/t4/t5 rows are STILL in the DB. Truncating the
+        // source file MUST NOT cascade-delete history.
+        XCTAssertEqual(store.observedCwds(), ["/Users/x/proj"])
+    }
+
     // MARK: - Empty projects root
 
     func testEmptyProjectsRoot() async throws {

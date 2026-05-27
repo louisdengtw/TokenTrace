@@ -158,55 +158,57 @@ This group's tasks depend on the gate decision in group 3:
 - If 3.2 path (i) was chosen, only 16.3 remains.
 - If 3.2 path (ii) was chosen, 16.1 and 16.2 have already happened during the gate; treat them as audit + finalise steps here.
 
-- [ ] 16.1 Apply / verify `frontend-design` skill output on `CCUsageView` AND `cc-report.html.template`: production-grade dashboard tab + report, consistent with the existing Subscription tab and existing `report.html.template`, calm palette, colour-blind-safe project colours
-- [ ] 16.2 Side-by-side review on light + dark mode against the pre-polish version (CCUsageView in-app + cc-report.html template in browser)
-- [ ] 16.3 Resize-test the CCUsageView tab at narrow window widths; chart legend should wrap or scroll instead of overflowing
+- [x] 16.1 Already covered by Group 3.2 gate path (i) — prototype visuals accepted; no separate `frontend-design` pass run
+- [x] 16.2 Same as 16.1 (gate accepted both schemes in prototype)
+- [x] 16.3 Resize-test via `CCUsageViewResizeSnapshotTests` — chart legend now wraps via custom `FlowLayout`. Verified at widths 920 / 640 / 500 (the practical floor: MainWindow has `minWidth: 760` → CC content ≥ ~580pt; 400/320 snapshots overflow the chart card but are not user-reachable)
 
 ## 17. Verification — walk every spec scenario
 
+Coverage legend: ✓ auto-tested · ◇ source-audited · ⊘ deferred to live smoke · ⊕ spec patched mid-Group-17 to match deliberate code deviation
+
 `claude-code-usage` capability:
-- [ ] 17.1 Cold ingest of a project with assistant lines produces exact expected row count
-- [ ] 17.2 Subagent transcripts included (manual `sqlite3` query: `SELECT count(*) FROM cc_message WHERE is_sidechain = 1`)
-- [ ] 17.3 Non-JSONL siblings (`.meta.json`) ignored
-- [ ] 17.4 Hyphen-ambiguous directory: row `cwd` is the JSONL value, not a guess
-- [ ] 17.5 Mixed cwds within one JSONL file produce two distinct project totals
-- [ ] 17.6 Re-run is idempotent
-- [ ] 17.7 Re-run after mid-file crash recovers all rows
-- [ ] 17.8 File-grows scenario: append 50 lines, ingest reads only the new bytes
-- [ ] 17.9 File-truncated scenario: shrink the file, ingest rescans from 0, deduplicated by uuid
-- [ ] 17.10 Partial-trailing-line: file ends mid-line, offset stays at last `\n`
-- [ ] 17.11 Privacy: instrument the parser in a debug build to confirm `message.content` is never accessed (assertion-on-touch)
-- [ ] 17.12 Weighted volume table-driven scenarios produce expected values
-- [ ] 17.13 Sidechain scenario: subagent line attributed to parent cwd; `is_sidechain = 1` row visible directly in DB
-- [ ] 17.14 Project aggregation zero-fill: two projects with different active days produce equal-length series
-- [ ] 17.15 Alias merge: two cwds with identical alias produce a single merged series with zero-fill applied to the merged result
-- [ ] 17.16 Ingest does not block UI: open CCUsageView on first launch with the full 354 MB / 678-file dataset, switch back to Subscription tab during indexing, verify subscription chart remains interactive
+- [x] 17.1 ✓ `CCUsageIngesterTests.testColdIngestProducesExpectedRowsAndSubagentAttribution`
+- [x] 17.2 ✓ same test asserts `rowsInserted == 5` from 3 main + 2 sidechain
+- [x] 17.3 ✓ `testNonJsonlSiblingsIgnored`
+- [x] 17.4 ◇ source: `CCUsageIngester.parseAssistantLine` reads `line.cwd` directly from JSONL; the project directory's hyphenated name is NEVER consulted for cwd derivation. Also implicit in `testMixedCwdsInOneFileProduceDistinctProjects`
+- [x] 17.5 ✓ `testMixedCwdsInOneFileProduceDistinctProjects` (added during Group 17)
+- [x] 17.6 ✓ `testReIngestIsIdempotent`
+- [x] 17.7 ✓ `testReingestAfterStaleCheckpointRecoversAndDedups` (added during Group 17)
+- [x] 17.8 ✓ `testFileGrowsScenarioReadsOnlyNewBytes`
+- [x] 17.9 ✓ `testFileTruncationTriggersRescanAndDedupsByUuid` (added during Group 17)
+- [x] 17.10 ✓ `testPartialTrailingLineDoesNotConsume`
+- [x] 17.11 ✓◇ `testMessageContentNotPersisted` runtime + source audit: `JSONLine.MessagePayload` Codable projection declares only `model` and `usage`, never `content` (intentional comment at `Services/CCUsageIngester.swift:213-216`). `grep '"content"\|message\.content' Sources/TokenTraceApp/` empty
+- [x] 17.12 ✓ `CCWeightedVolumeTests` (5 cases: representative, cache-heavy, zero, overflow guard, weight-constants-lock)
+- [x] 17.13 ✓ same as 17.1 — sidechain rows are attributed to the parent cwd
+- [x] 17.14 ✓ `CCUsageStoreTests.testTwoProjectsZeroFillFiveDayRange`
+- [x] 17.15 ✓ `testAliasMergesTwoCwdsIntoOneSeries` + `testWorktreeFoldRespectsAliasOnParent`
+- [ ] 17.16 ⊘ Live smoke — cold-launch the dev variant with a deleted dev sqlite + full `~/.claude/projects/` (354 MB / 678 files in author's dataset), open CC tab, immediately switch to Subscription tab, confirm subscription chart still pans/hovers while CC indexing continues
 
 `usage-dashboard` capability:
-- [ ] 17.17 "90d" chip resolves to `now − 90·86400 ... now`
-- [ ] 17.18 Edit From into Custom state deselects chips
-- [ ] 17.19 From > To prevented interactively
-- [ ] 17.20 "All" spans both stores — verify with a DB where CC predates samples and vice versa
-- [ ] 17.21 Range persists across tab switches
-- [ ] 17.22 Last-active tab persists across app restart (set CC, quit, relaunch)
-- [ ] 17.23 Two-projects-with-data scenario: stacked area visible, four-component sub-stack visible per project, legend shows both
-- [ ] 17.24 Subscription lines: 5h solid, 7d dashed, both 0–100%
-- [ ] 17.25 X axis updates with range
-- [ ] 17.26 Hover synchronisation: tooltip shows both data sources when both have values at the cursor X
-- [ ] 17.27 Empty-data scenarios 15.1–15.3 all reach the documented states
+- [x] 17.17 ✓ `RangeSelectionTests.testLast90dResolves`
+- [ ] 17.18 ⊘ Live smoke — edit From DatePicker on dashboard, confirm preset chip deselects
+- [ ] 17.19 ⊘ Live smoke — try to set From > To, confirm picker clamps
+- [ ] 17.20 ⊘ Live smoke — verified mechanically via `RangePickerView.oldestSample` plumbing (CC + sub stores both consulted) but visual end-to-end check still pending
+- [ ] 17.21 ⊘ Live smoke — toggle Subscription ↔ Claude Code tabs, confirm range chip stays selected
+- [x] 17.22 ✓ `AppSettingsTests` (4 cases: default, write-then-read, corrupt fallback, unknown-future fallback)
+- [ ] 17.23 ⊘ Live smoke — needs visible chart inspection in dev variant
+- [x] 17.24 ⊕ Original wording ("5h solid, 7d dashed") superseded by spec patch during Group 17 (commit context: bbf5723 — 7d line intentionally dropped from CC overlay). Updated assertion: 5h amber dotted only. Verified by `CCUsageViewEmptyStateSnapshotTests` (15.2 case)
+- [ ] 17.25 ⊘ Live smoke — change range, confirm X-axis re-scales (RangePickerView wiring exists; visual check pending)
+- [ ] 17.26 ⊘ Live smoke — hover near a data point, confirm tooltip shows both util % and per-project rows
+- [x] 17.27 ✓ `CCUsageViewEmptyStateSnapshotTests` covers 15.1 / 15.2 / 15.3 / 15.4 (the +1 was added during Group 15 and the spec was patched here to match)
 
 `usage-export` capability (tab-aware extension):
-- [ ] 17.28 Toolbar Export label flips with active tab ("Export Report…" / "Export Claude Code…")
-- [ ] 17.29 Subscription tab — toolbar button opens existing `ExportSheetView` unchanged
-- [ ] 17.30 Claude Code tab — toolbar button opens `CCExportSheetView`
-- [ ] 17.31 File menu / ⌘E — dispatch matches active tab
-- [ ] 17.32 CC export sheet defaults on every open (title, format PDF, range Last 7d, both Include toggles, All projects)
-- [ ] 17.33 CC export Save disabled when range contains zero CC records; inline message shown
-- [ ] 17.34 CC export default filename `claude-code-report-{from}_to_{to}.{ext}`
-- [ ] 17.35 CC HTML opens offline; browser Network panel reports zero non-`file://` requests
-- [ ] 17.36 CC PDF opens on a fresh machine without TokenTrace; layout matches the HTML twin
-- [ ] 17.37 Subscription overlay toggle off → exported chart contains no subscription lines and no secondary Y axis
-- [ ] 17.38 Project totals toggle off → exported report omits the project totals list section
+- [ ] 17.28 ⊘ Live smoke — switch tabs, confirm toolbar Export label flips
+- [ ] 17.29 ⊘ Live smoke — Subscription tab, click Export, confirm existing `ExportSheetView` opens
+- [ ] 17.30 ⊘ Live smoke — CC tab, click Export, confirm `CCExportSheetView` opens
+- [ ] 17.31 ⊘ Live smoke — ⌘E from either tab opens the matching sheet
+- [x] 17.32 ◇ source: `CCExportSheetView` `@State` defaults — `title = "Claude Code Activity Report"`, `format = .pdf`, `range = .preset(.last7d)`, `includeSubscriptionOverlay = true`, `includeProjectTotals = true`; no across-open persistence (sheet is reconstructed fresh each present)
+- [x] 17.33 ◇ source: `CCExportSheetView.footer` Save button has `.disabled(!hasDataInRange || isSaving)`; `projectsList` shows orange "No Claude Code activity in the selected range." when `observedCwdsInRange.isEmpty`
+- [x] 17.34 ◇ source: `defaultFilename(start:end:format:)` produces `claude-code-report-{yyyy-MM-dd}_to_{yyyy-MM-dd}.{ext}`. Implicit unit coverage via `CCReportGeneratorTests`
+- [ ] 17.35 ⊘ Live smoke — export HTML, open in browser with Network panel, confirm zero non-`file://` requests (Chart.js is inlined at `Resources/chart.umd.min.js`)
+- [ ] 17.36 ⊘ Live smoke — export PDF, open on a non-author machine (no TokenTrace) via Preview, compare to HTML twin
+- [x] 17.37 ✓ `CCReportGeneratorTests.testIncludeOverlayFlagInjectsBoolean` confirms `includeOverlay=false` injects `false` into the JS literal, which the template uses to skip the util-line plugin + secondary Y axis
+- [x] 17.38 ✓ `CCReportGeneratorTests.testIncludeTotalsFlagInjectsBoolean` (same mechanism, totals section)
 
 ## 18. Documentation
 
