@@ -18,6 +18,7 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
 - **Range chips**: the existing unified `RangePickerView` gains a **90d** chip (the new view's most useful preset for trend-spotting), giving `24h / 7d / 30d / 90d / All` shared by both subscription and CC views.
 - **Project alias UI**: minimal — a sheet opened from the CC view header. `cwd → display name` rows; delete-to-revert. No regex, no glob, no auto-grouping.
 - **Platform floor bump**: minimum macOS is raised from **13 → 14** to access `chartXSelection` (hover) and the dual-Y-axis chart layout cleanly. The existing `chartXSelectionIfAvailable` shim in `DashboardView.swift` becomes redundant but is left alone in this change.
+- **Tab-aware Export Report**: the Dashboard's "Export Report…" toolbar button (and File → Export / ⌘E) now dispatches by active tab. Subscription tab continues to open the existing `ExportSheetView` unchanged. Claude Code tab opens a new "Export Claude Code…" sheet that produces a portable HTML / PDF CC report (stats strip + per-project stacked area + project totals with mix breakdown + optional subscription utilisation overlay). The button label switches to match the active tab.
 
 ## Capabilities
 
@@ -25,15 +26,19 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
 - `claude-code-usage`: Ingest `~/.claude/projects/*/*.jsonl` incrementally into SQLite, aggregate by project and model, and expose a queryable time series with the same `from/to` shape as `usage-persistence`.
 
 ### Modified Capabilities
-- `usage-dashboard`: Split into two tabs (Subscription / Claude Code) with a shared range selector. The Claude Code tab adds the project breakdown view (stacked area) plus an X-axis-synchronised subscription utilisation sub-chart. Extend the shared range chip set to include 90d. (Alias persistence lives in the new `claude-code-usage` capability's SQLite tables, not `AppSettings` — see design Decision 8.)
+- `usage-dashboard`: Split into two tabs (Subscription / Claude Code) with a shared range selector. The Claude Code tab adds the project breakdown view (stacked area + subscription utilisation overlay on a dual Y axis) plus a stats strip and a project totals list with mix breakdown. Extend the shared range chip set to include 90d. (Alias persistence lives in the new `claude-code-usage` capability's SQLite tables, not `AppSettings` — see design Decision 8.)
+- `usage-export`: Extend Export with a parallel Claude Code variant — a new export sheet, a new HTML template, and a tab-aware dispatch on the existing entry points (toolbar button, File menu, ⌘E). Subscription export behaviour and report content are preserved unchanged.
 
 ## Impact
 
 - **New code**
   - `Services/CCUsageIngester.swift` — incremental JSONL scan, per-file offset checkpointing, line-by-line `type: "assistant"` parsing, batched inserts.
   - `Services/CCUsageStore.swift` — query API: `tokensByProject(from:to:granularity:)`, `tokensByModel(...)`, returning equivalent-cost-weighted aggregates plus raw four-component breakdown.
-  - `MainWindow/CCUsageView.swift` — new SwiftUI tab, stacked area + overlaid line on dual axes (SwiftUI Charts supports this on macOS 13). Header has a "Manage projects…" button that opens the alias sheet.
+  - `MainWindow/CCUsageView.swift` — new SwiftUI tab: stats strip, single-chart stacked area + subscription utilisation overlay on a dual Y axis, and project totals list with mix breakdown. Header has a "Manage projects…" button that opens the alias sheet.
   - `MainWindow/ProjectAliasSheet.swift` — modal sheet listing `cwd → display name` rows, presented from the CC view header. No entry point from app Settings (keeps Settings minimal).
+  - `MainWindow/CCExportSheetView.swift` — modal sheet for the Claude Code export (title / format / range / Include toggles / Projects list).
+  - `Services/CCReportGenerator.swift` — query `CCUsageStore.tokensByProject` and optionally `UsageStore.query`, substitute the CC report template, return final HTML; PDF rendered via the existing `PDFRenderer` (`WKWebView.createPDF`) path.
+  - `Resources/cc-report.html.template` — Chart.js-based stacked-area + dual-axis layout with the project totals list, reusing the existing inlined `chart.umd.min.js` asset.
 - **Modified code**
   - `DashboardView.swift` — wrap the existing subscription chart and the new CCUsageView in a `TabView` with two tabs ("Subscription" / "Claude Code"). Range chip selection is shared between tabs via the existing persisted `AppSettings` key.
   - `RangePickerView` — add 90d chip; verify chip ordering and `RangeSelection` enum extension.
@@ -51,4 +56,4 @@ There is no plan to copy any existing GitHub repo for this; the upstream salvage
   - **Auto-merging worktrees** via regex / git remote / common prefix — defer until the planned `.worktree/` directory migration, which makes prefix collapse trivial.
   - **Per-message / per-session drilldown** — only aggregates. Reading raw transcripts is out of scope.
   - **Cross-machine merge** — `~/.claude` is per-machine; users with multiple machines are out of scope.
-  - **Export / share** — not part of this change. The existing `usage-export` HTML report could be extended later to include CC data, but not in v1.
+  - **CC export advanced options** — v1 always includes all observed projects (no per-project filter in the sheet beyond an All / None level); no presets, no scheduled export, no share-sheet send.

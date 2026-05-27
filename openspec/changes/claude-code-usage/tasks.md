@@ -5,27 +5,24 @@
 - [x] 1.3 Build clean to confirm nothing else referenced 13-only fallback semantics; do NOT remove the existing `chartXSelectionIfAvailable` shim (out of scope for this change). Note: surfaces 2 `onChange(of:perform:)` deprecation warnings in `SettingsView.swift`, harmless, leave as follow-up
 - [x] 1.4 In `tools/build-app.sh`, make `APP_NAME` and `BUNDLE_ID` env-overridable (default `TokenTrace` / `dev.louisdeng.tokentrace`); `plutil -replace` the identity keys (CFBundleIdentifier, CFBundleName, CFBundleDisplayName, CFBundleExecutable, CFBundleIconFile) so non-default values produce a separately-installable .app
 - [x] 1.5 In `Makefile`, add `dev` / `dev-install` / `dev-run` targets exporting `APP_NAME=TokenTraceDev BUNDLE_ID=dev.louisdeng.tokentrace.dev` and acting on `build/TokenTraceDev.app` / `/Applications/TokenTraceDev.app`; `dev-run` `pkill` targets `TokenTraceDev` only, not `TokenTrace`
-- [ ] 1.6 Smoke: `make build` produces `TokenTrace.app` unchanged; `make dev-run` produces and launches `TokenTraceDev.app` alongside production
+- [x] 1.6 Smoke: `make build` produces `TokenTrace.app` unchanged (verified: bundle id `dev.louisdeng.tokentrace`); `make dev-run` produces and launches `TokenTraceDev.app` alongside production (verified: bundle id `dev.louisdeng.tokentrace.dev`, runs alongside production with no menu-bar collision)
 
 ## 2. UI prototype with stub data
 
 The chart is the highest-risk visual element in this change. Build it first with hardcoded data so the dual-axis Swift Charts layout, the four-component sub-stack per project, and hover synchronisation can be evaluated before committing to the data layer.
 
-- [ ] 2.1 Create `MainWindow/CCUsageView.swift` with the chart structure: single `Chart` with dual Y axis (`AxisMarks(position: .leading)` for weighted volume, `.trailing` for utilisation), stacked `AreaMark` on left axis with four sub-bands per project, `LineMark` on right axis for `five_hour` (solid) + `seven_day` (dashed)
-- [ ] 2.2 Add `MainWindow/CCUsagePreviewData.swift` with hardcoded fixtures: 3–4 fake projects with realistic 7-day distributions; fake subscription samples for 5h/7d that visibly correlate with one of the projects' activity peaks (so hover utility is demonstrable on the prototype)
-- [ ] 2.3 Add a TEMPORARY "Claude Code" tab to `DashboardView.swift` pointing at `CCUsageView` (the proper `TabView` refactor in group 11 will subsume this — keep this hack minimal so it's easy to replace later)
-- [ ] 2.4 Header row: Refresh + Manage projects… + info-caveat affordances rendered as static placeholders (buttons visible, do nothing yet)
-- [ ] 2.5 `chartXSelection(value: $selectedDate)` + `chartOverlay` for hover guideline + unified tooltip, driven by the stub data; tooltip shows per-project weighted volume + 5h/7d utilisation at the cursor
-- [ ] 2.6 Legend below the chart, mapping project → colour (colour-blind-safe palette as first cut)
-- [ ] 2.7 Run the app; capture screenshots in both light and dark mode
+- [x] 2.1 Create `MainWindow/CCUsageView.swift` with the chart structure: single `Chart` with dual Y axis (`AxisMarks(position: .leading)` for weighted volume, `.trailing` for utilisation), stacked `AreaMark` on left axis with four sub-bands per project, `LineMark` on right axis for `five_hour` (solid) + `seven_day` (dashed). Note: per-project four-sub-band sub-stack deferred — current implementation uses one stacked area per project; the four-component breakdown surfaces in the project totals list's Mix bar and in the hover tooltip
+- [x] 2.2 Add `MainWindow/CCUsagePreviewData.swift` with hardcoded fixtures: 3–4 fake projects with realistic 7-day distributions; fake subscription samples for 5h/7d that visibly correlate with one of the projects' activity peaks (so hover utility is demonstrable on the prototype)
+- [x] 2.3 Add a TEMPORARY "Claude Code" tab to `DashboardView.swift` pointing at `CCUsageView` (the proper `TabView` refactor in group 11 will subsume this — keep this hack minimal so it's easy to replace later); gated behind `bundleIdentifier?.hasSuffix(".dev")` so production is untouched
+- [x] 2.4 Header row: Refresh + Manage projects… + info-caveat affordances rendered as static placeholders (buttons visible, do nothing yet)
+- [x] 2.5 `chartXSelection(value: $selectedDate)` + `chartOverlay` for hover guideline + unified tooltip, driven by the stub data; tooltip shows per-project weighted volume + 5h/7d utilisation at the cursor
+- [x] 2.6 Legend below the chart, mapping project → colour (colour-blind-safe palette as first cut)
+- [x] 2.7 Run the app; capture screenshots in both light and dark mode. Out of original scope but added during prototype iteration: stats strip (Total / Top project / Peak 5h util), project totals card with weighted-contribution Mix bar, Opus/Sonnet split per project, tab-aware Export button + stub `CCExportSheetView` (drives Decision 11 in design.md)
 
 ## 3. Prototype gate (owner review)
 
-- [ ] 3.1 Owner reviews the running prototype + screenshots
-- [ ] 3.2 Decide path:
-    - **(i)** Visual is acceptable → continue to group 4; prototype view code is retained, group 12 just swaps stubs for real queries. Skip group 15 except 15.3 (resize test still applies).
-    - **(ii)** Visual needs polish → invoke `frontend-design` skill now (effectively moving group 15 here); iterate until acceptable; then continue to group 4.
-    - **(iii)** Layout is fundamentally wrong → return to `design.md` Decision 5, revise, redo group 2.
+- [x] 3.1 Owner reviews the running prototype + screenshots
+- [x] 3.2 Decide path: **(i)** Visual is acceptable — continue to group 4; prototype view code retained, group 12 just swaps stubs for real queries; skip group 16 except 16.3 (resize test). Detour during gate: tab-aware Export was added (new Decision 11 + Group 13 + `usage-export` spec delta).
 
 ## 4. Schema additions
 
@@ -113,74 +110,103 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [ ] 12.7 Update tooltip content to use real per-bucket data including the top project's four token components
 - [ ] 12.8 Delete `MainWindow/CCUsagePreviewData.swift`
 
-## 13. ProjectAliasSheet
+## 13. Claude Code export (CCExportSheetView plumb-in + CCReportGenerator + cc-report template)
 
-- [ ] 13.1 Build `MainWindow/ProjectAliasSheet.swift`
-- [ ] 13.2 Populate from `CCUsageStore.observedCwds()` + `aliases()`; show one row per observed `cwd`
-- [ ] 13.3 Show cwd in monospaced muted text; alias in editable `TextField`; placeholder shows the synthesised fallback label
-- [ ] 13.4 Swipe-to-delete (or context-menu "Clear alias") removes the alias and falls back to synthesised label
-- [ ] 13.5 Two cwds with the same alias text are not warned — the docs/spec explicitly support sum-merge by alias
-- [ ] 13.6 Done button closes the sheet; the chart re-queries on dismiss so changes are reflected immediately
+- [ ] 13.1 Add `Resources/cc-report.html.template` with sentinel tokens (`__TITLE__`, `__DATE_RANGE__`, `__DURATION_DAYS__`, `__CHART_JS__`, `__STATS_JSON__`, `__SERIES_JSON__`, `__PROJECT_TOTALS_JSON__`, `__INCLUDE_OVERLAY__`, `__INCLUDE_TOTALS__`, `__GENERATED_AT__`, `__DB_PATH__`)
+- [ ] 13.2 Template layout: header → stats strip → stacked-area chart (with optional overlay) → project totals list (conditional) → footer, mirroring `CCUsageView`'s on-screen structure
+- [ ] 13.3 Inline CSS: typography hierarchy consistent with `report.html.template`; calm neutral palette; colour-blind-safe project colours
+- [ ] 13.4 Inline JS: parse `__SERIES_JSON__`, render Chart.js stacked area with project breakdown; if `__INCLUDE_OVERLAY__` is true, draw `five_hour` (solid) and `seven_day` (dashed) on a secondary 0–100% Y axis sharing the X axis
+- [ ] 13.5 Add `Services/CCReportGenerator.swift`: `CCReportRequest` (title, format, range, includeOverlay, includeProjectTotals), `CCReportData` (stats strip values, per-project per-bucket series, project totals with mix + Opus/Sonnet split), `generateHTML(_ request:) -> String`, `generatePDF(html:) async throws -> Data` via existing `PDFRenderer`
+- [ ] 13.6 Bucket aggregation by range size: hour ≤ 24h, day ≤ 30d, week otherwise (matches `CCUsageView`)
+- [ ] 13.7 Replace `CCExportSheetView`'s stub Save with the real flow: `NSSavePanel` with default filename `claude-code-report-{from}_to_{to}.{ext}`, allowed content type tracks format; on confirm call `CCReportGenerator`; on cancel preserve selections
+- [ ] 13.8 Disable Save in `CCExportSheetView` when `CCUsageStore.tokensByProject(...)` returns empty for the selected range; show inline "No Claude Code activity in the selected range"
+- [ ] 13.9 Replace prototype's stub Projects list in `CCExportSheetView` with real `CCUsageStore.observedCwds()` for the selected range
+- [ ] 13.10 Wire `DashboardView`'s toolbar Export button: read `selectedTab`; open `ExportSheetView` or `CCExportSheetView` accordingly; button label flips between "Export Report…" and "Export Claude Code…"
+- [ ] 13.11 Wire File menu / ⌘E (`MainMenuBuilder.swift`): same tab-aware dispatch; menu item title flips with `selectedTab`
+- [ ] 13.12 Unit tests `CCReportGeneratorTests`: fixture-driven HTML output passes sentinel substitution (all tokens replaced exactly once); JSON-encoded series round-trips; PDF render path returns non-empty data on a small fixture
+- [ ] 13.13 Manual smoke: export from each tab, open exported HTML offline (network disconnected), confirm zero non-`file://` requests via browser Network panel; open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin
 
-## 14. Empty-data states (per spec)
+## 14. ProjectAliasSheet
 
-- [ ] 14.1 Range has CC data but no subscription samples → chart shows stacked area alone; right axis still renders 0–100% scale without lines
-- [ ] 14.2 Range has subscription samples but no CC data → chart shows subscription lines alone; legend area shows "No Claude Code activity in this range"
-- [ ] 14.3 Range has neither → chart replaced with empty-state placeholder "No data in this range"
-- [ ] 14.4 First-launch (no `cc_message` rows at all, `~/.claude/projects/` empty or absent) → CCUsageView shows a one-time onboarding card explaining where transcripts come from
+- [ ] 14.1 Build `MainWindow/ProjectAliasSheet.swift`
+- [ ] 14.2 Populate from `CCUsageStore.observedCwds()` + `aliases()`; show one row per observed `cwd`
+- [ ] 14.3 Show cwd in monospaced muted text; alias in editable `TextField`; placeholder shows the synthesised fallback label
+- [ ] 14.4 Swipe-to-delete (or context-menu "Clear alias") removes the alias and falls back to synthesised label
+- [ ] 14.5 Two cwds with the same alias text are not warned — the docs/spec explicitly support sum-merge by alias
+- [ ] 14.6 Done button closes the sheet; the chart re-queries on dismiss so changes are reflected immediately
 
-## 15. Visual polish via frontend-design skill
+## 15. Empty-data states (per spec)
+
+- [ ] 15.1 Range has CC data but no subscription samples → chart shows stacked area alone; right axis still renders 0–100% scale without lines
+- [ ] 15.2 Range has subscription samples but no CC data → chart shows subscription lines alone; legend area shows "No Claude Code activity in this range"
+- [ ] 15.3 Range has neither → chart replaced with empty-state placeholder "No data in this range"
+- [ ] 15.4 First-launch (no `cc_message` rows at all, `~/.claude/projects/` empty or absent) → CCUsageView shows a one-time onboarding card explaining where transcripts come from
+
+## 16. Visual polish via frontend-design skill
 
 This group's tasks depend on the gate decision in group 3:
-- If 3.2 path (i) was chosen, only 15.3 remains.
-- If 3.2 path (ii) was chosen, 15.1 and 15.2 have already happened during the gate; treat them as audit + finalise steps here.
+- If 3.2 path (i) was chosen, only 16.3 remains.
+- If 3.2 path (ii) was chosen, 16.1 and 16.2 have already happened during the gate; treat them as audit + finalise steps here.
 
-- [ ] 15.1 Apply / verify `frontend-design` skill output on `CCUsageView`: production-grade dashboard tab consistent with the existing Subscription tab, calm palette, colour-blind-safe project colours
-- [ ] 15.2 Side-by-side review on light + dark mode against the pre-polish version
-- [ ] 15.3 Resize-test the tab at narrow window widths; chart legend should wrap or scroll instead of overflowing
+- [ ] 16.1 Apply / verify `frontend-design` skill output on `CCUsageView` AND `cc-report.html.template`: production-grade dashboard tab + report, consistent with the existing Subscription tab and existing `report.html.template`, calm palette, colour-blind-safe project colours
+- [ ] 16.2 Side-by-side review on light + dark mode against the pre-polish version (CCUsageView in-app + cc-report.html template in browser)
+- [ ] 16.3 Resize-test the CCUsageView tab at narrow window widths; chart legend should wrap or scroll instead of overflowing
 
-## 16. Verification — walk every spec scenario
+## 17. Verification — walk every spec scenario
 
 `claude-code-usage` capability:
-- [ ] 16.1 Cold ingest of a project with assistant lines produces exact expected row count
-- [ ] 16.2 Subagent transcripts included (manual `sqlite3` query: `SELECT count(*) FROM cc_message WHERE is_sidechain = 1`)
-- [ ] 16.3 Non-JSONL siblings (`.meta.json`) ignored
-- [ ] 16.4 Hyphen-ambiguous directory: row `cwd` is the JSONL value, not a guess
-- [ ] 16.5 Mixed cwds within one JSONL file produce two distinct project totals
-- [ ] 16.6 Re-run is idempotent
-- [ ] 16.7 Re-run after mid-file crash recovers all rows
-- [ ] 16.8 File-grows scenario: append 50 lines, ingest reads only the new bytes
-- [ ] 16.9 File-truncated scenario: shrink the file, ingest rescans from 0, deduplicated by uuid
-- [ ] 16.10 Partial-trailing-line: file ends mid-line, offset stays at last `\n`
-- [ ] 16.11 Privacy: instrument the parser in a debug build to confirm `message.content` is never accessed (assertion-on-touch)
-- [ ] 16.12 Weighted volume table-driven scenarios produce expected values
-- [ ] 16.13 Sidechain scenario: subagent line attributed to parent cwd; `is_sidechain = 1` row visible directly in DB
-- [ ] 16.14 Project aggregation zero-fill: two projects with different active days produce equal-length series
-- [ ] 16.15 Alias merge: two cwds with identical alias produce a single merged series with zero-fill applied to the merged result
-- [ ] 16.16 Ingest does not block UI: open CCUsageView on first launch with the full 354 MB / 678-file dataset, switch back to Subscription tab during indexing, verify subscription chart remains interactive
+- [ ] 17.1 Cold ingest of a project with assistant lines produces exact expected row count
+- [ ] 17.2 Subagent transcripts included (manual `sqlite3` query: `SELECT count(*) FROM cc_message WHERE is_sidechain = 1`)
+- [ ] 17.3 Non-JSONL siblings (`.meta.json`) ignored
+- [ ] 17.4 Hyphen-ambiguous directory: row `cwd` is the JSONL value, not a guess
+- [ ] 17.5 Mixed cwds within one JSONL file produce two distinct project totals
+- [ ] 17.6 Re-run is idempotent
+- [ ] 17.7 Re-run after mid-file crash recovers all rows
+- [ ] 17.8 File-grows scenario: append 50 lines, ingest reads only the new bytes
+- [ ] 17.9 File-truncated scenario: shrink the file, ingest rescans from 0, deduplicated by uuid
+- [ ] 17.10 Partial-trailing-line: file ends mid-line, offset stays at last `\n`
+- [ ] 17.11 Privacy: instrument the parser in a debug build to confirm `message.content` is never accessed (assertion-on-touch)
+- [ ] 17.12 Weighted volume table-driven scenarios produce expected values
+- [ ] 17.13 Sidechain scenario: subagent line attributed to parent cwd; `is_sidechain = 1` row visible directly in DB
+- [ ] 17.14 Project aggregation zero-fill: two projects with different active days produce equal-length series
+- [ ] 17.15 Alias merge: two cwds with identical alias produce a single merged series with zero-fill applied to the merged result
+- [ ] 17.16 Ingest does not block UI: open CCUsageView on first launch with the full 354 MB / 678-file dataset, switch back to Subscription tab during indexing, verify subscription chart remains interactive
 
 `usage-dashboard` capability:
-- [ ] 16.17 "90d" chip resolves to `now − 90·86400 ... now`
-- [ ] 16.18 Edit From into Custom state deselects chips
-- [ ] 16.19 From > To prevented interactively
-- [ ] 16.20 "All" spans both stores — verify with a DB where CC predates samples and vice versa
-- [ ] 16.21 Range persists across tab switches
-- [ ] 16.22 Last-active tab persists across app restart (set CC, quit, relaunch)
-- [ ] 16.23 Two-projects-with-data scenario: stacked area visible, four-component sub-stack visible per project, legend shows both
-- [ ] 16.24 Subscription lines: 5h solid, 7d dashed, both 0–100%
-- [ ] 16.25 X axis updates with range
-- [ ] 16.26 Hover synchronisation: tooltip shows both data sources when both have values at the cursor X
-- [ ] 16.27 Empty-data scenarios 14.1–14.3 all reach the documented states
+- [ ] 17.17 "90d" chip resolves to `now − 90·86400 ... now`
+- [ ] 17.18 Edit From into Custom state deselects chips
+- [ ] 17.19 From > To prevented interactively
+- [ ] 17.20 "All" spans both stores — verify with a DB where CC predates samples and vice versa
+- [ ] 17.21 Range persists across tab switches
+- [ ] 17.22 Last-active tab persists across app restart (set CC, quit, relaunch)
+- [ ] 17.23 Two-projects-with-data scenario: stacked area visible, four-component sub-stack visible per project, legend shows both
+- [ ] 17.24 Subscription lines: 5h solid, 7d dashed, both 0–100%
+- [ ] 17.25 X axis updates with range
+- [ ] 17.26 Hover synchronisation: tooltip shows both data sources when both have values at the cursor X
+- [ ] 17.27 Empty-data scenarios 15.1–15.3 all reach the documented states
 
-## 17. Documentation
+`usage-export` capability (tab-aware extension):
+- [ ] 17.28 Toolbar Export label flips with active tab ("Export Report…" / "Export Claude Code…")
+- [ ] 17.29 Subscription tab — toolbar button opens existing `ExportSheetView` unchanged
+- [ ] 17.30 Claude Code tab — toolbar button opens `CCExportSheetView`
+- [ ] 17.31 File menu / ⌘E — dispatch matches active tab
+- [ ] 17.32 CC export sheet defaults on every open (title, format PDF, range Last 7d, both Include toggles, All projects)
+- [ ] 17.33 CC export Save disabled when range contains zero CC records; inline message shown
+- [ ] 17.34 CC export default filename `claude-code-report-{from}_to_{to}.{ext}`
+- [ ] 17.35 CC HTML opens offline; browser Network panel reports zero non-`file://` requests
+- [ ] 17.36 CC PDF opens on a fresh machine without TokenTrace; layout matches the HTML twin
+- [ ] 17.37 Subscription overlay toggle off → exported chart contains no subscription lines and no secondary Y axis
+- [ ] 17.38 Project totals toggle off → exported report omits the project totals list section
 
-- [ ] 17.1 Add a brief CC-tab note to `CLAUDE.md` (where `~/.claude/projects/` lives, the privacy guarantee, the "weighted token volume" naming)
-- [ ] 17.2 Update the "Min macOS" line in `CLAUDE.md` to 14.0
-- [ ] 17.3 If README mentions features, add the Claude Code tab to the list
+## 18. Documentation
 
-## 18. Pre-PR review
+- [ ] 18.1 Add a brief CC-tab note to `CLAUDE.md` (where `~/.claude/projects/` lives, the privacy guarantee, the "weighted token volume" naming, the tab-aware Export behaviour)
+- [ ] 18.2 Update the "Min macOS" line in `CLAUDE.md` to 14.0
+- [ ] 18.3 If README mentions features, add the Claude Code tab + tab-aware Export to the list
 
-- [ ] 18.1 Run the `simplify` skill against the new files in `Persistence/`, `Services/`, `Models/`, `MainWindow/`
-- [ ] 18.2 `openspec validate claude-code-usage` clean
-- [ ] 18.3 Self-review: confirm none of the new code reads `message.content` and the divergence counter is wired
-- [ ] 18.4 Manual smoke against a fresh DB (delete `usage.sqlite`, relaunch, open CCUsageView) and confirm onboarding + first ingest path
+## 19. Pre-PR review
+
+- [ ] 19.1 Run the `simplify` skill against the new files in `Persistence/`, `Services/`, `Models/`, `MainWindow/`, `Resources/`
+- [ ] 19.2 `openspec validate claude-code-usage` clean
+- [ ] 19.3 Self-review: confirm none of the new code reads `message.content` and the divergence counter is wired
+- [ ] 19.4 Manual smoke against a fresh DB (delete `usage.sqlite`, relaunch, open CCUsageView) and confirm onboarding + first ingest path

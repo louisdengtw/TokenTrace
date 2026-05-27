@@ -38,7 +38,7 @@ Existing constraints (post-change):
 - Per-session or per-message drilldown. Aggregates only.
 - Reading `server_tool_use` (web_search / web_fetch counts). Captured in JSONL but ignored in v1; can be re-ingested later since data stays on disk.
 - Worktree auto-merge. Defer to the owner's planned `.worktree/` directory migration; until then alias UI is the only merge mechanism.
-- Anonymisation, export, sharing.
+- Anonymisation. Sharing limited to file export (Decision 11) — no share-sheet integration, no scheduled or emailed exports.
 
 ## Decisions
 
@@ -198,6 +198,28 @@ CREATE TABLE IF NOT EXISTS project_alias (
 
 No backfill needed — `IF NOT EXISTS` makes first-launch-after-upgrade trivial. Existing `samples` table is untouched.
 
+### Decision 11 — Export Report becomes tab-aware (two parallel sheets)
+
+The existing "Export Report…" button lives on the Dashboard's global toolbar above the new TabView. When users on the Claude Code tab click it, their expectation is to export the visible tab — but the existing `ExportSheetView` and `ReportGenerator` only understand subscription buckets.
+
+Three options were considered (post-prototype-gate):
+
+1. Disable Export on the Claude Code tab with a "Coming in v2" affordance.
+2. Move Export from the global toolbar to a per-tab header so the location signals scope.
+3. Tab-aware dispatch on the existing toolbar button — same surface, different sheet by active tab.
+
+**Option 3 chosen.** It preserves the toolbar's global look-and-feel while delivering the user's expected semantics, and the toolbar layout doesn't shuffle. The two sheets are kept as **separate views** (rather than one polymorphic sheet) because their input controls genuinely differ: Subscription needs bucket checkboxes; CC needs the project filter + the Include toggles (project totals + subscription overlay). Forcing one sheet to be both would create a polymorphism without value.
+
+Approach:
+
+- **Subscription path unchanged.** `ExportSheetView`, `ReportGenerator`, `report.html.template` — all preserved as-is.
+- **CC path runs in parallel.** New `CCExportSheetView` (built during the prototype phase as a stub, plumbed in tasks), new `CCReportGenerator`, new `cc-report.html.template`.
+- **Entry-point dispatch.** Toolbar button and File menu / ⌘E both read the currently-selected `DashboardTabKey` and present the matching sheet. The toolbar button label switches accordingly: `"Export Report…"` vs `"Export Claude Code…"`.
+- **CC report content** mirrors the on-screen CC tab: header (title + resolved date range + duration) → stats strip (total / top project / peak 5h util) → stacked-area chart with dual Y axis (project breakdown left, optional subscription overlay right) → project totals list with mix-breakdown bars and Opus/Sonnet split → footer (source DB path + generation timestamp).
+- **CC report assets** reuse the inlined `chart.umd.min.js` already bundled for `usage-export`. Chart.js can render stacked areas with two scales natively, so the dual-axis trick used in the live SwiftUI chart (rescale-and-relabel-trailing-axis) is unnecessary here.
+- **PDF** flows through the same `PDFRenderer.renderHTMLToPDF(html:)` path as `usage-export`; no new WebKit code.
+- **Defaults** match the live tab: title `"Claude Code Activity Report"`, format PDF, range `Last 7d`, both Include toggles ON, All projects selected. Per the existing usage-export spec, the sheet is stateless across opens — every open resets to defaults.
+
 ### Decision 10 — Bump platform floor from macOS 13 to macOS 14
 
 `Package.swift`'s `platforms: [.macOS(.v13)]` becomes `.macOS(.v14)`. Rationale:
@@ -223,6 +245,10 @@ The README and build script do not need to change — `xcodebuild` already inher
 | `MainWindow/CCUsageView.swift` | new | two-chart layout, range chip reused, "Manage projects…" button |
 | `MainWindow/ProjectAliasSheet.swift` | new | the modal sheet |
 | `MainWindow/CCStackedAreaChart.swift` | new | the upper sub-chart (factored out for clarity) |
+| `MainWindow/CCExportSheetView.swift` | new | tab-aware export sheet for the Claude Code report (Decision 11) |
+| `Services/CCReportGenerator.swift` | new | turn `CCUsageStore` + optional `UsageStore` query results into final HTML via the CC template |
+| `Resources/cc-report.html.template` | new | Chart.js stacked-area + dual-axis + project totals list, sentinel-token substitution like the existing `report.html.template` |
+| `DashboardView.swift` | modified (further) | tab-aware Export button (label + dispatch by `selectedTab`); File-menu / ⌘E uses the same dispatch |
 
 Tests: `CCUsageIngesterTests` (fixture JSONL files in `Tests/Fixtures/cc-projects/` including a `subagents/` subdir and a deliberately-partial-trailing-line file), `CCWeightedVolumeTests` (table-driven), `RangeSelectionTests` (extend to cover 90d).
 
