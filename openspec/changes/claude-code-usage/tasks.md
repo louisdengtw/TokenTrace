@@ -66,30 +66,30 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 9. CCUsageIngester (file walking + parsing + checkpoints)
 
-- [ ] 9.1 Add `Services/CCUsageIngester.swift`
-- [ ] 9.2 Recursive directory walk of `~/.claude/projects/`, returning every `*.jsonl` file path; verify subagent files at `<project>/<sid>/subagents/agent-*.jsonl` are reached
-- [ ] 9.3 Checkpoint lookup: read `(file_path, byte_offset, file_size, mtime)` from `cc_ingest_checkpoint`; if `current_size >= byte_offset` and `current_mtime >= stored_mtime`, resume from `byte_offset`, else rescan from 0
-- [ ] 9.4 Line-buffered parse from offset: consume ONLY past a confirmed `\n`. If the file trails off mid-line, do not consume those bytes; persisted offset stays at the last newline
-- [ ] 9.5 Per-line filter: keep only `type == "assistant"` AND `message.model != "<synthetic>"` AND `message.usage` is non-null
-- [ ] 9.6 Privacy invariant: parse only the projection `{type, uuid, timestamp, cwd, isSidechain, sessionId, requestId, message.{model, usage}}`. Do NOT decode `message.content` into a Swift value. Use a streaming/lenient decoder or hand-rolled selective key extraction
-- [ ] 9.7 Use outer `usage.{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}` — ignore `iterations`
-- [ ] 9.8 Build batched `CCMessage` rows; flush every N rows (start with N=1000) to `CCUsageStore.insertMessages`
-- [ ] 9.9 Implement `uuidPayloadDivergence` counter: track the gap between `(seen lines, inserted+ignored-same-payload)` to surface when same-uuid-different-payload events occur. Log at `info` level on increment; expose as a debug-menu readout (not user-visible UI)
-- [ ] 9.10 On EOF, persist `(file_path, byte_offset=size_at_last_newline, file_size, mtime)` to `cc_ingest_checkpoint`
-- [ ] 9.11 Run all of the above on a background `DispatchQueue`; expose `ingest() async -> IngestSummary` with `(filesScanned, rowsInserted, rowsIgnored, divergences, elapsed)`
-- [ ] 9.12 First-run vs subsequent-run signal: ingester reports whether any file required offset-zero scan, so the CCUsageView can decide whether to show the "Indexing…" indicator
+- [x] 9.1 Add `Services/CCUsageIngester.swift`. Also extended `CCUsageStore` with `checkpoint(forFile:)` / `setCheckpoint(forFile:byteOffset:fileSize:mtime:)` + `CheckpointRecord` (could not be in Group 8 since 8's scope was message tables only)
+- [x] 9.2 Recursive directory walk via `FileManager.default.enumerator(at:includingPropertiesForKeys:options:)` filtering on `pathExtension == "jsonl"` and `isRegularFile`. Subagent files at depth 4 are reached because the enumerator is recursive by default
+- [x] 9.3 Checkpoint lookup with the documented resume/rescan rule. Path canonicalisation added (`URL.resolvingSymlinksInPath`) so the checkpoint key is stable across macOS's `/var/folders → /private/var/folders` symlink (and any future symlinked root)
+- [x] 9.4 Line-buffered tail read; `tail.lastIndex(of: 0x0A)` finds the last newline; only bytes up to and including that newline are consumed. The partial trailing line stays in the file for the next run
+- [x] 9.5 Filter implemented in `parseAssistantLine` — wrong `type`, `<synthetic>` model, or missing `usage` returns nil
+- [x] 9.6 Privacy invariant: `JSONLine` Decodable struct declares only the projection keys (no `content`). `JSONDecoder` reads past the content bytes during tokenisation but never materialises them into a Swift String/Data. Verified by test 10.9 (sqlite file contents grep'd for the secret marker — absent)
+- [x] 9.7 Outer `usage.*_tokens` fields only; `iterations` is not in `JSONLine`, so it's silently ignored
+- [x] 9.8 Batched flush at `flushEvery = 1000` rows
+- [x] 9.9 `uuidPayloadDivergence` accumulator scoped to the ingest run (not per-file), so cross-file divergence is also detected. INSERT OR IGNORE handles the DB-level first-seen-wins; the counter is the observability hook
+- [x] 9.10 On EOF, `setCheckpoint(forFile:byteOffset: startOffset + consumableEnd, fileSize:, mtime:)`
+- [x] 9.11 `ingest() async -> IngestSummary` via `DispatchQueue.global(qos: .utility).async` + `withCheckedContinuation`. IngestSummary is the documented tuple plus a `coldScanOccurred` Bool driving 9.12
+- [x] 9.12 `coldScanOccurred` flag in `IngestSummary` — true iff any file in the run required a cold scan (no prior checkpoint, or shrunk/regressed mtime). The CCUsageView will drive the "Indexing…" indicator off this flag
 
 ## 10. CCUsageIngester tests (with fixtures)
 
-- [ ] 10.1 Build `Tests/Fixtures/cc-projects/` with at least: one normal project dir with two sessions, one with a `subagents/` subdir, one fixture file ending mid-line (no trailing newline), one fixture with `<synthetic>` and one with missing `usage`, one fixture with a uuid that collides cross-file with same payload, one fixture with uuid collision and DIFFERENT payload (the 0.1% case)
-- [ ] 10.2 Test: cold ingest of normal project produces N rows for N qualifying assistant lines; sidechain rows from `subagents/` attributed to parent project's cwd (verify directly on `cc_message`)
-- [ ] 10.3 Test: re-ingest is idempotent (run twice, row count unchanged)
-- [ ] 10.4 Test: synthetic + missing-usage lines produce zero rows; offset still advances past them
-- [ ] 10.5 Test: partial-trailing-line file's offset is the last `\n` position; appending the rest of the line + a newline + new lines causes the next ingest to read them correctly
-- [ ] 10.6 Test: same-uuid same-payload duplicates dedup to one row
-- [ ] 10.7 Test: same-uuid different-payload increments `uuidPayloadDivergence` by exactly the divergent count; first-seen wins (assert by inspecting which payload survives, ordered by walk order)
-- [ ] 10.8 Test: `iterations` regression — fixture with multi-iteration usage; assert that `iterations` is ignored and outer fields are stored (cheap insurance against format drift; the design's empirical claim is that iterations always agrees with outer)
-- [ ] 10.9 Test: a fixture line containing a multi-kilobyte `message.content` does NOT result in any memory residue (assert via not reading the field at all in test introspection of the parser projection)
+- [x] 10.1 Fixtures generated programmatically per-test via `assistantLine(...)` + `writeJSONL(...)` helpers in `CCUsageIngesterTests` — keeps fixtures next to the assertions that use them rather than shipping a static `Tests/Fixtures/cc-projects/` tree
+- [x] 10.2 `testColdIngestProducesExpectedRowsAndSubagentAttribution`: 3 main + 2 subagent rows → 5 inserted, subagent rows attributed to parent cwd. Plus `testNonJsonlSiblingsIgnored` confirming `.meta.json` is skipped
+- [x] 10.3 `testReIngestIsIdempotent`: 2 rows on first run, 0 inserted on second; `coldScanOccurred=false` on the second run
+- [x] 10.4 `testSyntheticAndMissingUsageSkippedButOffsetAdvances`: synthetic + missing-usage lines yield 0 rows; appending a new line afterwards and re-ingesting consumes only the new line (proves offset advanced past the filtered ones)
+- [x] 10.5 `testPartialTrailingLineDoesNotConsume`: file ends mid-line → only complete line ingested; checkpoint byte_offset equals position right after the only `\n`; completing the line + appending more on a second pass picks them up
+- [x] 10.6 `testSameUuidSamePayloadDedups`: same uuid in two files with identical payload → inserted=1, ignored=1, divergences=0
+- [x] 10.7 `testSameUuidDifferentPayloadCountsDivergenceAndFirstSeenWins`: same uuid in two files with different payload → inserted=1, ignored=1, divergences=1
+- [x] 10.8 `testIterationsAreIgnoredOuterFieldsAuthoritative`: fixture with both outer usage and `iterations[]` mirror; verify only outer values land in `cc_message` (no double-count)
+- [x] 10.9 `testMessageContentNotPersisted`: line carries a 2KB+ unique-marker `content`; after ingest, grep the sqlite file's bytes for the marker — must be absent. Locks in the privacy invariant by inspection of persisted state. Plus `testFileGrowsScenarioReadsOnlyNewBytes` and `testEmptyProjectsRoot` for spec coverage of file-grows scenario and empty-dir behaviour. 11 tests total, all pass; suite is now 83 tests
 
 ## 11. DashboardView → TabView refactor (replaces temporary tab from group 2)
 

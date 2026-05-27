@@ -363,6 +363,68 @@ final class CCUsageStore {
         _ = sqlite3_step(stmt)
     }
 
+    // MARK: - Ingest checkpoints (used by CCUsageIngester, group 9)
+
+    struct CheckpointRecord: Equatable, Sendable {
+        let filePath: String
+        let byteOffset: Int64
+        let fileSize: Int64
+        let mtime: Int64
+    }
+
+    /// Canonicalise a file path before using it as the checkpoint key, so that
+    /// symlinked roots (notably macOS's `/var/folders → /private/var/folders`)
+    /// don't store and look up checkpoints under different strings.
+    private func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// Read the checkpoint for one file, if any.
+    func checkpoint(forFile path: String) -> CheckpointRecord? {
+        let canonical = canonicalPath(path)
+        let sql = """
+        SELECT byte_offset, file_size, mtime
+        FROM cc_ingest_checkpoint
+        WHERE file_path = ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, canonical, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return CheckpointRecord(
+            filePath: canonical,
+            byteOffset: sqlite3_column_int64(stmt, 0),
+            fileSize:   sqlite3_column_int64(stmt, 1),
+            mtime:      sqlite3_column_int64(stmt, 2)
+        )
+    }
+
+    /// Upsert a checkpoint for one file. Persisted after the ingester reaches
+    /// EOF on a file, where `byteOffset` is the position of the last newline
+    /// it consumed.
+    func setCheckpoint(
+        forFile path: String,
+        byteOffset: Int64,
+        fileSize: Int64,
+        mtime: Int64
+    ) {
+        let canonical = canonicalPath(path)
+        let sql = """
+        INSERT OR REPLACE INTO cc_ingest_checkpoint
+            (file_path, byte_offset, file_size, mtime)
+        VALUES (?, ?, ?, ?);
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text (stmt, 1, canonical,  -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(stmt, 2, byteOffset)
+        sqlite3_bind_int64(stmt, 3, fileSize)
+        sqlite3_bind_int64(stmt, 4, mtime)
+        _ = sqlite3_step(stmt)
+    }
+
     // MARK: - Observed cwds (task 8.9)
 
     func observedCwds() -> [String] {
