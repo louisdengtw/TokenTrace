@@ -24,14 +24,20 @@ final class UsageStore {
             appropriateFor: nil,
             create: true
         )
-        let dir = support.appendingPathComponent("dev.louisdeng.tokentrace", isDirectory: true)
+        // Per-bundle isolation: production uses dev.louisdeng.tokentrace; the
+        // side-by-side dev variant uses dev.louisdeng.tokentrace.dev. Falls
+        // back to the production constant if bundleIdentifier is unreadable
+        // (e.g. command-line `swift run` outside an .app bundle).
+        let bundleID = Bundle.main.bundleIdentifier ?? "dev.louisdeng.tokentrace"
+        let dir = support.appendingPathComponent(bundleID, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let dbPath = dir.appendingPathComponent("usage.sqlite")
 
         // One-time migration from the pre-rename location (when the app was
-        // named ClaudeUsage). Move on first launch only; subsequent launches
-        // see the new path already populated.
-        if !FileManager.default.fileExists(atPath: dbPath.path) {
+        // named ClaudeUsage). Only relevant for the production bundle ID; dev
+        // variants intentionally start with a fresh DB.
+        if !FileManager.default.fileExists(atPath: dbPath.path),
+           bundleID == "dev.louisdeng.tokentrace" {
             let legacyDir = support.appendingPathComponent("dev.louisdeng.claudeusage", isDirectory: true)
             let legacyDB = legacyDir.appendingPathComponent("usage.sqlite")
             if FileManager.default.fileExists(atPath: legacyDB.path) {

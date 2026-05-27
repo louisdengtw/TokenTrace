@@ -26,11 +26,11 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 4. Schema additions
 
-- [ ] 4.1 Append `createCCMessageTable` DDL to `Persistence/Schema.swift` (`uuid` PK, four token columns, `ts`, `cwd`, `model`, `session_id`, `request_id`, `is_sidechain`, `file_path`)
-- [ ] 4.2 Append `createCCMessageTsIndex` and `createCCMessageCwdTsIndex` to `Schema.swift`
-- [ ] 4.3 Append `createCCIngestCheckpointTable` (`file_path` PK, `byte_offset`, `file_size`, `mtime`)
-- [ ] 4.4 Append `createProjectAliasTable` (`cwd` PK, `display_name`)
-- [ ] 4.5 Confirm `UsageStore.init` iterates the extended `allDDL`; manually verify the new tables on a fresh DB file
+- [x] 4.1 Append `createCCMessageTable` DDL to `Persistence/Schema.swift` (`uuid` PK, four token columns, `ts`, `cwd`, `model`, `session_id`, `request_id`, `is_sidechain`, `file_path`)
+- [x] 4.2 Append `createCCMessageTsIndex` and `createCCMessageCwdTsIndex` to `Schema.swift`
+- [x] 4.3 Append `createCCIngestCheckpointTable` (`file_path` PK, `byte_offset`, `file_size`, `mtime`)
+- [x] 4.4 Append `createProjectAliasTable` (`cwd` PK, `display_name`)
+- [x] 4.5 Confirm `UsageStore.init` iterates the extended `allDDL`; manually verify the new tables on a fresh DB file (verified via `sqlite3 ~/Library/Application\ Support/dev.louisdeng.tokentrace.dev/usage.sqlite ".tables"` after first dev launch). Also fixed an isolation bug discovered during verification: `UsageStore.defaultDatabaseURL()` hard-coded the path to `dev.louisdeng.tokentrace`, causing the dev variant to share production data; now derives the dir from `Bundle.main.bundleIdentifier`, with the legacy claudeusage migration gated to the production bundle only
 
 ## 5. Weighted token volume model
 
