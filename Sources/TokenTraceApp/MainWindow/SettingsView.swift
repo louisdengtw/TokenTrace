@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var notificationsOn = AppSettings.notificationsEnabled
     @State private var openAtLoginOn = AppSettings.openAtLoginEnabled
     @State private var openAtLoginErrorMessage: String?
+    @State private var ccProjectNameDepth = AppSettings.ccProjectNameDepth
+    @State private var ccMergeWorktrees = AppSettings.ccMergeWorktrees
 
     @Environment(\.openURL) private var openURL
 
@@ -22,12 +24,40 @@ struct SettingsView: View {
             cookieSection
             notificationsSection
             loginSection
+            claudeCodeSection
         }
         .formStyle(.grouped)
         .padding(20)
         .onAppear { applyPendingImportIfAny() }
         .onChange(of: usageManager.pendingImportCookie) { _ in applyPendingImportIfAny() }
         .onChange(of: usageManager.pendingImportError) { _ in applyPendingImportIfAny() }
+    }
+
+    // MARK: - Claude Code display
+
+    @ViewBuilder
+    private var claudeCodeSection: some View {
+        Section("Claude Code") {
+            Picker("Project label", selection: $ccProjectNameDepth) {
+                Text("Folder name (e.g. \"TokenTrace\")").tag(1)
+                Text("Parent / folder (e.g. \"workspace/TokenTrace\")").tag(2)
+            }
+            .onChange(of: ccProjectNameDepth) { newValue in
+                AppSettings.ccProjectNameDepth = newValue
+            }
+
+            Toggle("Merge git worktrees into parent project", isOn: $ccMergeWorktrees)
+                .onChange(of: ccMergeWorktrees) { newValue in
+                    AppSettings.ccMergeWorktrees = newValue
+                }
+            Text("Folds cwds containing a `.worktree` or `.worktrees` segment (e.g. agent worktrees, side-by-side branches) into the parent repo's row in the project breakdown.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("Changes apply on the next Refresh or range change in the Claude Code tab.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     // MARK: - Cookie

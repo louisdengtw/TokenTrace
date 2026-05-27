@@ -33,6 +33,8 @@ enum AppSettings {
         static let openAtLoginEnabled = "openAtLoginEnabled"
         static let dashboardRangeSelection = "dashboardRangeSelection"
         static let lastDashboardTab = "lastDashboardTab"
+        static let ccProjectNameDepth = "ccProjectNameDepth"
+        static let ccMergeWorktrees = "ccMergeWorktrees"
     }
 
     static var notificationsEnabled: Bool {
@@ -43,6 +45,38 @@ enum AppSettings {
     static var openAtLoginEnabled: Bool {
         get { defaults.bool(forKey: Key.openAtLoginEnabled) }
         set { defaults.set(newValue, forKey: Key.openAtLoginEnabled) }
+    }
+
+    /// How many trailing path components to use when synthesising a project's
+    /// display name from its `cwd`. Default `1` keeps labels compact
+    /// (e.g. `/Users/x/workspace/TokenTrace` → "TokenTrace"); set to `2` for
+    /// monorepo-style uniqueness ("workspace/TokenTrace"). User-set aliases
+    /// always override this.
+    static var ccProjectNameDepth: Int {
+        get {
+            let raw = defaults.integer(forKey: Key.ccProjectNameDepth)
+            return raw == 0 ? 1 : raw  // 0 == "never set"
+        }
+        set {
+            defaults.set(max(1, min(3, newValue)), forKey: Key.ccProjectNameDepth)
+        }
+    }
+
+    /// When true (default), cwds containing a `.worktree` or `.worktrees`
+    /// path segment fold into the parent path, so a `repo/.worktree/branch`
+    /// worktree merges into `repo`'s aggregated row.
+    static var ccMergeWorktrees: Bool {
+        get {
+            // UserDefaults.bool defaults to false for missing keys, but we
+            // want "missing" → true. Probe for existence first.
+            if defaults.object(forKey: Key.ccMergeWorktrees) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Key.ccMergeWorktrees)
+        }
+        set {
+            defaults.set(newValue, forKey: Key.ccMergeWorktrees)
+        }
     }
 
     /// Last-active Dashboard tab. Missing or unrecognised values fall back to

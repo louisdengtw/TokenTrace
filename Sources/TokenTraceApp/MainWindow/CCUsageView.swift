@@ -10,11 +10,25 @@ struct CCUsageView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var selectedDate: Date?
     @State private var isIndexing: Bool = false
-    /// Bumped after an ingest finishes; the computed `projects` / `fiveHour`
-    /// / `sevenDay` properties read it so that SwiftUI re-evaluates them on
-    /// the next body render. Without this nudge, `@State`-free computeds
-    /// would not trigger a refresh when the underlying DB changes.
-    @State private var refreshTick: Int = 0
+
+    // Cached query results. Recomputed on appear, on range change, and after
+    // an ingest. The reason for caching: each body re-evaluation otherwise
+    // re-issues every store query (the chart, tooltip, totals card and
+    // legend all read `aggregates`, which itself queries `modelBreakdown`
+    // once per project — N projects × 4-5 readers = quadratic SQL load).
+    @State private var projectsAll: [CCUsageStore.ProjectSeries] = []
+    @State private var displayedProjects: [CCUsageStore.ProjectSeries] = []
+    @State private var aggregates: [ProjectAggregate] = []
+    @State private var fiveHour: [UsageSample] = []
+    @State private var sevenDay: [UsageSample] = []
+    @State private var hoveredRowCwd: String? = nil
+
+    /// At most this many distinct projects are shown individually. Everything
+    /// past it collapses into a single "Other (N)" synthesised series. Caps
+    /// the rendered AreaMark count and keeps the legend / tooltip readable.
+    private let maxIndividualProjects = 8
+
+    private static let otherCwdSentinel = "__cc_other__"
 
     // MARK: - Sub-band components (matches Mix bar in totals card)
 
@@ -43,11 +57,12 @@ struct CCUsageView: View {
         Color(red: 0.20, green: 0.60, blue: 0.69),  // teal
     ]
 
-    private func color(forIndex i: Int) -> Color {
-        Self.palette[i % Self.palette.count]
+    private func color(forIndex i: Int, cwd: String) -> Color {
+        if cwd == Self.otherCwdSentinel { return Color.gray.opacity(0.55) }
+        return Self.palette[i % Self.palette.count]
     }
 
-    // MARK: - Queries (re-run when refreshTick or domain changes)
+    // MARK: - Query orchestration
 
     private var rangeDays: Double {
         domain.upperBound.timeIntervalSince(domain.lowerBound) / 86400
@@ -60,23 +75,70 @@ struct CCUsageView: View {
         return .week
     }
 
-    private var projects: [CCUsageStore.ProjectSeries] {
-        _ = refreshTick
-        return ccStore.tokensByProject(
+    /// Re-issue all backing store queries and rebuild the displayed grouping.
+    /// Cheap to call repeatedly — the SQL ops are sub-millisecond on realistic
+    /// data sizes. Heavy work (modelBreakdown × N) happens once per call,
+    /// rather than once per body re-evaluation.
+    private func reloadCaches() {
+        // Display options come from AppSettings so the user can configure
+        // them in the Settings sheet without restarting. Changes take effect
+        // on next reloadCaches (which fires on appear, range change, and
+        // Refresh).
+        let options = CCUsageStore.QueryOptions(
+            displayNameDepth: AppSettings.ccProjectNameDepth,
+            mergeWorktrees:   AppSettings.ccMergeWorktrees
+        )
+        let raw = ccStore.tokensByProject(
             from: domain.lowerBound,
             to: domain.upperBound,
-            bucket: bucket
+            bucket: bucket,
+            options: options
         )
+        projectsAll = raw
+        displayedProjects = groupTopN(raw, n: maxIndividualProjects)
+        fiveHour = usageStore.query(bucket: .fiveHour, from: domain.lowerBound, to: domain.upperBound)
+        sevenDay = usageStore.query(bucket: .sevenDay, from: domain.lowerBound, to: domain.upperBound)
+        aggregates = computeAggregates(displayedProjects)
     }
 
-    private var fiveHour: [UsageSample] {
-        _ = refreshTick
-        return usageStore.query(bucket: .fiveHour, from: domain.lowerBound, to: domain.upperBound)
-    }
+    /// Sort by total-weighted descending, keep first `n`, collapse the rest
+    /// into one "Other (N)" synthesised series with per-bucket sums. Returns
+    /// the result already in display order (top-down).
+    private func groupTopN(_ all: [CCUsageStore.ProjectSeries], n: Int) -> [CCUsageStore.ProjectSeries] {
+        guard all.count > n else { return all }
+        let top = Array(all.prefix(n))
+        let rest = Array(all.dropFirst(n))
+        guard !rest.isEmpty else { return top }
 
-    private var sevenDay: [UsageSample] {
-        _ = refreshTick
-        return usageStore.query(bucket: .sevenDay, from: domain.lowerBound, to: domain.upperBound)
+        // Sum per-bucket components across `rest`, keyed by ts.
+        var summed: [Date: (Int, Int, Int, Int)] = [:]
+        for s in rest {
+            for b in s.buckets {
+                var prev = summed[b.ts] ?? (0, 0, 0, 0)
+                prev.0 += b.inputTokens
+                prev.1 += b.outputTokens
+                prev.2 += b.cacheCreationTokens
+                prev.3 += b.cacheReadTokens
+                summed[b.ts] = prev
+            }
+        }
+        let buckets = summed
+            .sorted { $0.key < $1.key }
+            .map { (ts, v) in
+                CCUsageStore.ProjectBucket(
+                    ts: ts,
+                    inputTokens: v.0,
+                    outputTokens: v.1,
+                    cacheCreationTokens: v.2,
+                    cacheReadTokens: v.3
+                )
+            }
+        let other = CCUsageStore.ProjectSeries(
+            cwd: Self.otherCwdSentinel,
+            displayName: "Other (\(rest.count))",
+            buckets: buckets
+        )
+        return top + [other]
     }
 
     // MARK: - Aggregates for the totals card
@@ -93,33 +155,40 @@ struct CCUsageView: View {
         let opusRatio: Double
     }
 
-    private var aggregates: [ProjectAggregate] {
+    private func computeAggregates(_ ps: [CCUsageStore.ProjectSeries]) -> [ProjectAggregate] {
         var out: [ProjectAggregate] = []
-        for (i, p) in projects.enumerated() {
+        for (i, p) in ps.enumerated() {
             let totalIn  = p.buckets.reduce(0) { $0 + $1.inputTokens }
             let totalOut = p.buckets.reduce(0) { $0 + $1.outputTokens }
             let totalCc  = p.buckets.reduce(0) { $0 + $1.cacheCreationTokens }
             let totalCr  = p.buckets.reduce(0) { $0 + $1.cacheReadTokens }
             let weighted = p.buckets.reduce(0.0) { $0 + $1.weightedTotal }
 
-            // Best-effort model split. When two cwds are alias-merged into
-            // one series, this uses the representative cwd's models only;
-            // an approximation acceptable for v1 attribution.
-            let modelTotals = ccStore.modelBreakdown(
-                forCwd: p.cwd,
-                from: domain.lowerBound,
-                to: domain.upperBound
-            )
-            let totalModelW = modelTotals.reduce(0.0) { $0 + $1.weighted }
-            let opusW = modelTotals
-                .filter { $0.model.lowercased().contains("opus") }
-                .reduce(0.0) { $0 + $1.weighted }
-            let opusRatio = totalModelW > 0 ? opusW / totalModelW : 0
+            // Model breakdown is best-effort:
+            //   • For real projects, query the representative (parent) cwd's
+            //     models AND any worktree descendants (the store does the
+            //     LIKE matching when includeWorktrees is true).
+            //   • For the synthesised "Other" bucket, skip — no single cwd
+            //     applies, so the Opus/Sonnet column shows "—" downstream.
+            var opusRatio: Double = 0
+            if p.cwd != Self.otherCwdSentinel {
+                let modelTotals = ccStore.modelBreakdown(
+                    forCwd: p.cwd,
+                    from: domain.lowerBound,
+                    to: domain.upperBound,
+                    includeWorktrees: AppSettings.ccMergeWorktrees
+                )
+                let totalModelW = modelTotals.reduce(0.0) { $0 + $1.weighted }
+                let opusW = modelTotals
+                    .filter { $0.model.lowercased().contains("opus") }
+                    .reduce(0.0) { $0 + $1.weighted }
+                opusRatio = totalModelW > 0 ? opusW / totalModelW : 0
+            }
 
             out.append(ProjectAggregate(
                 cwd: p.cwd,
                 displayName: p.displayName,
-                baseColor: color(forIndex: i),
+                baseColor: color(forIndex: i, cwd: p.cwd),
                 weighted: weighted,
                 inputTokens: totalIn,
                 outputTokens: totalOut,
@@ -136,11 +205,11 @@ struct CCUsageView: View {
     }
 
     private var stackedMaxPerBucket: Double {
-        guard let first = projects.first else { return 1 }
+        guard let first = displayedProjects.first else { return 1 }
         let timestamps = first.buckets.map(\.ts)
         var maxStacked = 0.0
         for ts in timestamps {
-            let stacked = projects.reduce(0.0) { acc, p in
+            let stacked = displayedProjects.reduce(0.0) { acc, p in
                 acc + (p.buckets.first { $0.ts == ts }?.weightedTotal ?? 0)
             }
             maxStacked = max(maxStacked, stacked)
@@ -160,6 +229,8 @@ struct CCUsageView: View {
             }
             .padding(18)
         }
+        .onAppear { reloadCaches() }
+        .onChange(of: domain) { _ in reloadCaches() }
     }
 
     // MARK: - Header
@@ -210,7 +281,7 @@ struct CCUsageView: View {
         _ = await ccIngester.ingest()
         await MainActor.run {
             isIndexing = false
-            refreshTick &+= 1
+            reloadCaches()
         }
     }
 
@@ -292,16 +363,15 @@ struct CCUsageView: View {
     /// then project₁, etc. Stacking is driven by `chartForegroundStyleScale`'s
     /// domain ordering, so the domain MUST match this order.
     private var seriesDomain: [String] {
-        projects.flatMap { p in
+        displayedProjects.flatMap { p in
             Component.allCases.map { "\(p.cwd)|\($0.rawValue)" }
         }
     }
 
     private var seriesRange: [Color] {
         var out: [Color] = []
-        for (i, p) in projects.enumerated() {
-            let base = color(forIndex: i)
-            _ = p  // silence unused-warning in optimised builds
+        for (i, p) in displayedProjects.enumerated() {
+            let base = color(forIndex: i, cwd: p.cwd)
             for c in Component.allCases {
                 out.append(base.opacity(c.opacity))
             }
@@ -323,7 +393,7 @@ struct CCUsageView: View {
         let yMax = stackedMaxPerBucket
 
         Chart {
-            ForEach(projects, id: \.cwd) { project in
+            ForEach(displayedProjects, id: \.cwd) { project in
                 ForEach(project.buckets, id: \.ts) { bkt in
                     ForEach(Component.allCases, id: \.self) { component in
                         AreaMark(
@@ -409,13 +479,18 @@ struct CCUsageView: View {
 
     private func tooltipOverlay(date: Date, xOffset: CGFloat, plotSize: CGSize) -> some View {
         let nearestPerProject: [(name: String, color: Color, weighted: Double, bucket: CCUsageStore.ProjectBucket?)] = aggregates.map { agg in
-            let series = projects.first { $0.cwd == agg.cwd }
+            let series = displayedProjects.first { $0.cwd == agg.cwd }
             let nearest = series?.buckets.min {
                 abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date))
             }
             return (agg.displayName, agg.baseColor, nearest?.weightedTotal ?? 0, nearest)
         }
-        let ordered = nearestPerProject.sorted { $0.weighted > $1.weighted }
+        // Only show rows with non-zero contribution at the cursor X; sorted
+        // desc by weighted. Caps at 8 rows so the tooltip doesn't grow tall.
+        let ordered = nearestPerProject
+            .filter { $0.weighted > 0 }
+            .sorted { $0.weighted > $1.weighted }
+            .prefix(8)
         let top = ordered.first?.bucket
         let nearestFive = fiveHour.min { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }
         let nearestSeven = sevenDay.min { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }
@@ -500,8 +575,12 @@ struct CCUsageView: View {
                 ForEach(Array(aggregates.enumerated()), id: \.element.cwd) { _, agg in
                     HStack(spacing: 5) {
                         RoundedRectangle(cornerRadius: 2).fill(agg.baseColor).frame(width: 9, height: 9)
-                        Text(agg.displayName).font(.system(size: 10))
+                        Text(agg.displayName)
+                            .font(.system(size: 10))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
+                    .help(rowHelpText(for: agg))
                 }
             }
             Spacer()
@@ -593,11 +672,14 @@ struct CCUsageView: View {
             .tracking(0.5)
     }
 
+    @ViewBuilder
     private func projectTotalRow(agg: ProjectAggregate, leadingWeighted: Double) -> some View {
         let pct = grandTotalWeighted > 0 ? Int((agg.weighted / grandTotalWeighted * 100).rounded()) : 0
         let opusPct = Int((agg.opusRatio * 100).rounded())
+        let isHovered = hoveredRowCwd == agg.cwd
 
-        return HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 12) {
             Text(agg.displayName)
                 .font(.system(size: 11))
                 .frame(width: 110, alignment: .leading)
@@ -637,11 +719,44 @@ struct CCUsageView: View {
             .frame(width: 80, height: 6)
             .help("Share of weighted volume by component (input×1 + output×5 + cache_create×1.25 + cache_read×0.1)")
 
-            Text("Opus \(opusPct)% · Sonnet \(100 - opusPct)%")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 130, alignment: .trailing)
+            Group {
+                if agg.cwd == Self.otherCwdSentinel {
+                    Text("—")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text("Opus \(opusPct)% · Sonnet \(100 - opusPct)%")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 130, alignment: .trailing)
+            }  // end HStack
+
+            // Hover reveal: show the representative cwd (or "Other" caveat)
+            // as an in-flow line that pushes the next row down a few px.
+            // Replaces the broken overlay approach, which floated above and
+            // covered adjacent rows.
+            if isHovered {
+                Text(rowDetailText(for: agg))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            hoveredRowCwd = hovering ? agg.cwd : nil
+        }
+    }
+
+    private func rowDetailText(for agg: ProjectAggregate) -> String {
+        if agg.cwd == Self.otherCwdSentinel {
+            return "↳ Below the top \(maxIndividualProjects), aggregated"
+        }
+        return "↳ \(agg.cwd)"
     }
 
     // MARK: - Shared chrome
@@ -660,6 +775,17 @@ struct CCUsageView: View {
     }
 
     // MARK: - Formatters
+
+    /// Tooltip text shown on hover over a truncated project label (in the
+    /// totals card and the chart legend). For real projects we show the
+    /// full display name + the representative cwd; for the synthesised
+    /// "Other" bucket we just describe what it is.
+    private func rowHelpText(for agg: ProjectAggregate) -> String {
+        if agg.cwd == Self.otherCwdSentinel {
+            return "\(agg.displayName) — projects below the top \(maxIndividualProjects), aggregated."
+        }
+        return "\(agg.displayName)\n\(agg.cwd)"
+    }
 
     private func formatVolume(_ v: Double) -> String {
         switch v {

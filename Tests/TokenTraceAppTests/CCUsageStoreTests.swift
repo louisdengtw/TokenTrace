@@ -181,20 +181,68 @@ final class CCUsageStoreTests: XCTestCase {
 
     func testAliasOverridesSynthesisedLabel() {
         _ = store.insertMessages([msg("x", cwd: "/Users/x/workspace/Foo", day: 0)])
-        // Without alias → synthesised "workspace/Foo"
+        // Default depth=1 → synthesised label is just the last component.
         var result = store.tokensByProject(from: day(0), to: day(0), bucket: .day)
-        XCTAssertEqual(result.first?.displayName, "workspace/Foo")
-        // With alias → alias used.
-        store.setAlias(cwd: "/Users/x/workspace/Foo", displayName: "Foo")
-        result = store.tokensByProject(from: day(0), to: day(0), bucket: .day)
         XCTAssertEqual(result.first?.displayName, "Foo")
+        // With alias → alias used.
+        store.setAlias(cwd: "/Users/x/workspace/Foo", displayName: "MyFoo")
+        result = store.tokensByProject(from: day(0), to: day(0), bucket: .day)
+        XCTAssertEqual(result.first?.displayName, "MyFoo")
     }
 
-    func testSynthesisedLabelOnShortCwd() {
+    func testSynthesisedLabelAtDepthTwo() {
+        _ = store.insertMessages([msg("x", cwd: "/Users/x/workspace/Foo", day: 0)])
+        let options = CCUsageStore.QueryOptions(displayNameDepth: 2, mergeWorktrees: true)
+        let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: options)
+        XCTAssertEqual(result.first?.displayName, "workspace/Foo")
+    }
+
+    func testSynthesisedLabelOnSingleComponentCwd() {
         _ = store.insertMessages([msg("x", cwd: "/foo", day: 0)])
         let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day)
-        // Single non-empty path component → full cwd as label (per spec scenario)
-        XCTAssertEqual(result.first?.displayName, "/foo")
+        // depth=1, single non-empty path component → that component as label.
+        XCTAssertEqual(result.first?.displayName, "foo")
+    }
+
+    // MARK: - Worktree fold
+
+    func testWorktreesMergeIntoParentByDefault() {
+        // Three sources for the same logical project: the parent itself, a
+        // .worktree subdirectory, and a .worktrees agent worktree.
+        _ = store.insertMessages([
+            msg("a", cwd: "/Users/x/repo", day: 0, input: 100),
+            msg("b", cwd: "/Users/x/repo/.worktree/branch", day: 1, input: 200),
+            msg("c", cwd: "/Users/x/repo/.worktrees/agent-uuid", day: 2, input: 300),
+        ])
+        // Default options have mergeWorktrees = true.
+        let result = store.tokensByProject(from: day(0), to: day(2), bucket: .day)
+        XCTAssertEqual(result.count, 1, "all three cwds should fold into one row")
+        let s = result[0]
+        XCTAssertEqual(s.displayName, "repo", "displayName uses the parent's last component")
+        let totalInput = s.buckets.reduce(0) { $0 + $1.inputTokens }
+        XCTAssertEqual(totalInput, 600, "summed across three sources")
+    }
+
+    func testWorktreesKeepSeparateWhenDisabled() {
+        _ = store.insertMessages([
+            msg("a", cwd: "/Users/x/repo", day: 0),
+            msg("b", cwd: "/Users/x/repo/.worktree/branch", day: 0),
+        ])
+        let opts = CCUsageStore.QueryOptions(displayNameDepth: 1, mergeWorktrees: false)
+        let result = store.tokensByProject(from: day(0), to: day(0), bucket: .day, options: opts)
+        XCTAssertEqual(result.count, 2, "worktree fold disabled → separate rows")
+    }
+
+    func testWorktreeFoldRespectsAliasOnParent() {
+        _ = store.insertMessages([
+            msg("a", cwd: "/Users/x/repo",                day: 0, input: 100),
+            msg("b", cwd: "/Users/x/repo/.worktree/branch", day: 1, input: 200),
+        ])
+        // Set alias on the parent — both rows should inherit it via the fold.
+        store.setAlias(cwd: "/Users/x/repo", displayName: "Repo")
+        let result = store.tokensByProject(from: day(0), to: day(1), bucket: .day)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].displayName, "Repo")
     }
 
     // MARK: - Cross-source oldest (8.7)

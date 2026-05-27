@@ -55,11 +55,28 @@ final class CCUsageStore {
     }
 
     struct ProjectSeries: Equatable, Sendable {
-        /// Canonical key for the series. When alias-merging maps multiple cwds
-        /// to one displayName, this is the alias display string (not a cwd).
+        /// Representative cwd for the series. When alias-merging (or worktree
+        /// folding via `QueryOptions.mergeWorktrees`) collapses multiple cwds
+        /// into one series, this is the first cwd seen for that group — used
+        /// for downstream queries (e.g. `modelBreakdown(forCwd:)`).
         let cwd: String
         let displayName: String
         let buckets: [ProjectBucket]
+    }
+
+    /// Controls how `tokensByProject` shapes its output.
+    struct QueryOptions: Equatable, Sendable {
+        /// Number of trailing path components used when synthesising a
+        /// project's display name from its `cwd`. 1 → `"TokenTrace"`,
+        /// 2 → `"workspace/TokenTrace"`.
+        let displayNameDepth: Int
+
+        /// When true, cwds containing a `.worktree` or `.worktrees` path
+        /// segment fold into the parent path during aggregation, so all
+        /// worktrees of a repo share one row.
+        let mergeWorktrees: Bool
+
+        static let `default` = QueryOptions(displayNameDepth: 1, mergeWorktrees: true)
     }
 
     // MARK: - Lifecycle
@@ -175,7 +192,8 @@ final class CCUsageStore {
     func tokensByProject(
         from: Date,
         to: Date,
-        bucket: TimeBucket
+        bucket: TimeBucket,
+        options: QueryOptions = .default
     ) -> [ProjectSeries] {
         guard from <= to else { return [] }
 
@@ -229,13 +247,45 @@ final class CCUsageStore {
 
         if perCwd.isEmpty { return [] }
 
+        // Optional worktree fold: cwds with a `.worktree` / `.worktrees`
+        // segment collapse to the parent path. Done before alias lookup so
+        // an alias set on the parent applies to all its worktrees.
+        var perEffectiveCwd: [String: (representativeCwd: String, buckets: [Int64: ProjectBucket])] = [:]
+        for (cwd, buckets) in perCwd {
+            let effective = options.mergeWorktrees ? normaliseForWorktree(cwd) : cwd
+            if var existing = perEffectiveCwd[effective] {
+                for (ts, bkt) in buckets {
+                    if let prev = existing.buckets[ts] {
+                        existing.buckets[ts] = ProjectBucket(
+                            ts: prev.ts,
+                            inputTokens:         prev.inputTokens         + bkt.inputTokens,
+                            outputTokens:        prev.outputTokens        + bkt.outputTokens,
+                            cacheCreationTokens: prev.cacheCreationTokens + bkt.cacheCreationTokens,
+                            cacheReadTokens:     prev.cacheReadTokens     + bkt.cacheReadTokens
+                        )
+                    } else {
+                        existing.buckets[ts] = bkt
+                    }
+                }
+                perEffectiveCwd[effective] = existing
+            } else {
+                // Use the normalised path as the representative when a fold
+                // collapsed multiple sources (effective != cwd). For non-fold
+                // cases this is identical to the original cwd. Tooltip and
+                // downstream queries get the parent path, not the
+                // first-worktree path.
+                perEffectiveCwd[effective] = (representativeCwd: effective, buckets: buckets)
+            }
+        }
+
         // Alias resolution + merge-by-displayName.
         let aliasMap = aliases()
         var perDisplay: [String: (key: String, buckets: [Int64: ProjectBucket])] = [:]
-        for (cwd, buckets) in perCwd {
-            let displayName = aliasMap[cwd] ?? synthesiseDisplayName(from: cwd)
+        for (effectiveCwd, entry) in perEffectiveCwd {
+            let displayName = aliasMap[effectiveCwd]
+                ?? synthesiseDisplayName(from: effectiveCwd, depth: options.displayNameDepth)
             if var existing = perDisplay[displayName] {
-                for (ts, bkt) in buckets {
+                for (ts, bkt) in entry.buckets {
                     if let prev = existing.buckets[ts] {
                         existing.buckets[ts] = ProjectBucket(
                             ts: prev.ts,
@@ -250,7 +300,7 @@ final class CCUsageStore {
                 }
                 perDisplay[displayName] = existing
             } else {
-                perDisplay[displayName] = (key: cwd, buckets: buckets)
+                perDisplay[displayName] = (key: entry.representativeCwd, buckets: entry.buckets)
             }
         }
 
@@ -308,11 +358,32 @@ final class CCUsageStore {
         return out
     }
 
-    private func synthesiseDisplayName(from cwd: String) -> String {
+    private func synthesiseDisplayName(from cwd: String, depth: Int = 1) -> String {
         let trimmed = cwd.hasSuffix("/") ? String(cwd.dropLast()) : cwd
         let comps = trimmed.split(separator: "/", omittingEmptySubsequences: true)
-        guard comps.count >= 2 else { return cwd }
-        return comps.suffix(2).joined(separator: "/")
+        let d = max(1, depth)
+        guard comps.count >= d else { return cwd }
+        return comps.suffix(d).joined(separator: "/")
+    }
+
+    /// Strip a trailing `.worktree/<branch>` or `.worktrees/<id>` from `cwd`,
+    /// returning the parent path. Pathological cases (`.worktree` is the
+    /// first component, leaving an empty parent) keep the original cwd.
+    private func normaliseForWorktree(_ cwd: String) -> String {
+        let comps = cwd.split(separator: "/", omittingEmptySubsequences: false)
+        guard let idx = comps.firstIndex(where: { $0 == ".worktree" || $0 == ".worktrees" }) else {
+            return cwd
+        }
+        let parentComps = comps[..<idx]
+        // For an absolute path like `/Users/x/foo/.worktree/branch`, the
+        // first component (before the leading `/`) is empty and parentComps
+        // joins to `/Users/x/foo`. For a degenerate `.worktree/...` (no
+        // parent), keep the original cwd.
+        let parent = parentComps.joined(separator: "/")
+        if parent.isEmpty || parent == "/" {
+            return cwd
+        }
+        return parent
     }
 
     // MARK: - Per-project model breakdown (used by the CC tab's totals card)
@@ -321,24 +392,58 @@ final class CCUsageStore {
     /// Returned tuples sum the same `(input·1 + output·5 + cache_create·1.25
     /// + cache_read·0.1)` formula used elsewhere. Caller normalises to a
     /// percentage if needed.
-    func modelBreakdown(forCwd cwd: String, from: Date, to: Date) -> [(model: String, weighted: Double)] {
-        let sql = """
-        SELECT model,
-               SUM( input_tokens          * 1.0
-                  + output_tokens         * 5.0
-                  + cache_creation_tokens * 1.25
-                  + cache_read_tokens     * 0.1 )
-        FROM cc_message
-        WHERE cwd = ? AND ts >= ? AND ts <= ?
-        GROUP BY model
-        ORDER BY 2 DESC;
-        """
+    ///
+    /// When `includeWorktrees` is true (the default), `cwd` is treated as a
+    /// parent and any rows whose cwd lives under `<cwd>/.worktree/...` or
+    /// `<cwd>/.worktrees/...` are aggregated in too — matching the way
+    /// `tokensByProject` folds worktrees by default. Callers that disabled
+    /// the fold there should pass `false` here for consistency.
+    func modelBreakdown(
+        forCwd cwd: String,
+        from: Date,
+        to: Date,
+        includeWorktrees: Bool = true
+    ) -> [(model: String, weighted: Double)] {
+        let sql: String
+        if includeWorktrees {
+            sql = """
+            SELECT model,
+                   SUM( input_tokens          * 1.0
+                      + output_tokens         * 5.0
+                      + cache_creation_tokens * 1.25
+                      + cache_read_tokens     * 0.1 )
+            FROM cc_message
+            WHERE (cwd = ?1
+                   OR cwd LIKE ?2
+                   OR cwd LIKE ?3)
+              AND ts >= ?4 AND ts <= ?5
+            GROUP BY model
+            ORDER BY 2 DESC;
+            """
+        } else {
+            sql = """
+            SELECT model,
+                   SUM( input_tokens          * 1.0
+                      + output_tokens         * 5.0
+                      + cache_creation_tokens * 1.25
+                      + cache_read_tokens     * 0.1 )
+            FROM cc_message
+            WHERE cwd = ?1 AND ts >= ?4 AND ts <= ?5
+            GROUP BY model
+            ORDER BY 2 DESC;
+            """
+        }
+
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_text (stmt, 1, cwd, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int64(stmt, 2, sqlite3_int64(from.timeIntervalSince1970))
-        sqlite3_bind_int64(stmt, 3, sqlite3_int64(to.timeIntervalSince1970))
+        if includeWorktrees {
+            sqlite3_bind_text(stmt, 2, cwd + "/.worktree/%",  -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, cwd + "/.worktrees/%", -1, SQLITE_TRANSIENT)
+        }
+        sqlite3_bind_int64(stmt, 4, sqlite3_int64(from.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, 5, sqlite3_int64(to.timeIntervalSince1970))
 
         var out: [(model: String, weighted: Double)] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
