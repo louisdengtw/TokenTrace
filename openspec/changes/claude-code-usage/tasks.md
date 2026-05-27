@@ -34,9 +34,9 @@ The chart is the highest-risk visual element in this change. Build it first with
 
 ## 5. Weighted token volume model
 
-- [ ] 5.1 Add `Models/CCWeightedVolume.swift` with weight constants (1.0 / 5.0 / 1.25 / 0.1) and inline comment citing the Anthropic API pricing source (date the citation)
-- [ ] 5.2 Add `func weightedTotal(input: Int, output: Int, cacheCreation: Int, cacheRead: Int) -> Double` helper
-- [ ] 5.3 Unit tests `CCWeightedVolumeTests`: representative record (700.0), cache-heavy edge (10000.0), zero record (0.0), Int overflow guard
+- [x] 5.1 Add `Models/CCWeightedVolume.swift` with weight constants (1.0 / 5.0 / 1.25 / 0.1) and inline comment citing the Anthropic API pricing source (date the citation)
+- [x] 5.2 Add `func weightedTotal(input: Int, output: Int, cacheCreation: Int, cacheRead: Int) -> Double` helper
+- [x] 5.3 Unit tests `CCWeightedVolumeTests`: representative record (700.0), cache-heavy edge (10000.0), zero record (0.0), Int overflow guard, plus a weight-constants-match-spec lock test (5 tests total, all pass)
 
 ## 6. Range chip — add 90d
 
