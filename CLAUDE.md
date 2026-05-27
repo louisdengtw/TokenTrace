@@ -98,20 +98,20 @@ open /Applications/TokenTrace.app
 - `user.email` already set locally to
   `281707863+louisdengtw@users.noreply.github.com` (GitHub email-privacy block
   otherwise rejects pushes).
-- No remote yet. GitHub repo `louisdengtw/TokenTrace` not yet created.
-  Group 11 in tasks.md covers that.
+- `origin` = `https://github.com/louisdengtw/TokenTrace.git` (public). PR
+  workflow: branch + PR every time, even though solo (see memory
+  `feedback_pr_not_push_main.md`).
 
 ## Current state
 
-- v1 + `usage-export` shipped and archived. Subscription tab, menu bar
-  accessory, Keychain cookie, threshold notifications, HTML/PDF report
-  export, range chip + custom picker — all live.
-- **`claude-code-usage` change in flight** (branch `feat/claude-code-usage`).
-  Adds the Claude Code tab + tab-aware Export. Groups 1–17 done. Groups 18
-  (this doc update) + 19 (pre-PR review + production smoke) remain before
-  archive.
-- GitHub publishing (Group 11 of the original rewrite) still not done — no
-  remote yet.
+- v1.0 → v1.1 (cookie-import, tagged + released 2026-05-12) → v1.2 (this
+  change, plist bumped 2026-05-28; usage-export shipped without a release
+  in between).
+- All 19 groups of `claude-code-usage` done; change is on branch
+  `feat/claude-code-usage`, ready for PR review + merge + archive.
+- Subscription tab, menu bar accessory, Keychain cookie, threshold
+  notifications, HTML/PDF report export, range chip + custom picker, and
+  the new Claude Code tab + tab-aware Export — all live.
 
 ## Export Report feature
 
