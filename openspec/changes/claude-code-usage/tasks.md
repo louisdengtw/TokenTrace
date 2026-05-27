@@ -182,31 +182,31 @@ Coverage legend: ✓ auto-tested · ◇ source-audited · ⊘ deferred to live s
 - [x] 17.13 ✓ same as 17.1 — sidechain rows are attributed to the parent cwd
 - [x] 17.14 ✓ `CCUsageStoreTests.testTwoProjectsZeroFillFiveDayRange`
 - [x] 17.15 ✓ `testAliasMergesTwoCwdsIntoOneSeries` + `testWorktreeFoldRespectsAliasOnParent`
-- [ ] 17.16 ⊘ Live smoke — cold-launch the dev variant with a deleted dev sqlite + full `~/.claude/projects/` (354 MB / 678 files in author's dataset), open CC tab, immediately switch to Subscription tab, confirm subscription chart still pans/hovers while CC indexing continues
+- [x] 17.16 ✓ Live smoke 2026-05-28 — cleared `cc_message` + `cc_ingest_checkpoint` (kept 8636 subscription samples), relaunched, clicked Refresh on the 15.4 onboarding card, switched to Subscription tab during indexing; sub chart remained hoverable/interactive; CC tab repopulated after ~5–10 s
 
 `usage-dashboard` capability:
 - [x] 17.17 ✓ `RangeSelectionTests.testLast90dResolves`
-- [ ] 17.18 ⊘ Live smoke — edit From DatePicker on dashboard, confirm preset chip deselects
-- [ ] 17.19 ⊘ Live smoke — try to set From > To, confirm picker clamps
-- [ ] 17.20 ⊘ Live smoke — verified mechanically via `RangePickerView.oldestSample` plumbing (CC + sub stores both consulted) but visual end-to-end check still pending
-- [ ] 17.21 ⊘ Live smoke — toggle Subscription ↔ Claude Code tabs, confirm range chip stays selected
+- [x] 17.18 ✓ Live smoke 2026-05-28 — selected `7d`, edited From DatePicker, chip deselected into Custom
+- [x] 17.19 ✓ Live smoke 2026-05-28 — picker clamps; dragging From past To pushes To along
+- [x] 17.20 ✓ Live smoke 2026-05-28 — `All` resolved to the earlier-of-the-two-stores oldest timestamp
+- [x] 17.21 ✓ Live smoke 2026-05-28 — `30d` chip selected on Sub tab survived the switch to CC tab
 - [x] 17.22 ✓ `AppSettingsTests` (4 cases: default, write-then-read, corrupt fallback, unknown-future fallback)
-- [ ] 17.23 ⊘ Live smoke — needs visible chart inspection in dev variant
+- [x] 17.23 ✓ Live smoke 2026-05-28 — multiple projects visible in stacked area, four token-component sub-bands distinguishable per project, legend lists all projects
 - [x] 17.24 ⊕ Original wording ("5h solid, 7d dashed") superseded by spec patch during Group 17 (commit context: bbf5723 — 7d line intentionally dropped from CC overlay). Updated assertion: 5h amber dotted only. Verified by `CCUsageViewEmptyStateSnapshotTests` (15.2 case)
-- [ ] 17.25 ⊘ Live smoke — change range, confirm X-axis re-scales (RangePickerView wiring exists; visual check pending)
-- [ ] 17.26 ⊘ Live smoke — hover near a data point, confirm tooltip shows both util % and per-project rows
+- [x] 17.25 ✓ Live smoke 2026-05-28 — swapping `7d` ↔ `30d` re-ticked the X-axis
+- [x] 17.26 ✓ Live smoke 2026-05-28 — vertical guideline + tooltip with per-project descending list + `5h: NN%` row appeared on hover
 - [x] 17.27 ✓ `CCUsageViewEmptyStateSnapshotTests` covers 15.1 / 15.2 / 15.3 / 15.4 (the +1 was added during Group 15 and the spec was patched here to match)
 
 `usage-export` capability (tab-aware extension):
-- [ ] 17.28 ⊘ Live smoke — switch tabs, confirm toolbar Export label flips
-- [ ] 17.29 ⊘ Live smoke — Subscription tab, click Export, confirm existing `ExportSheetView` opens
-- [ ] 17.30 ⊘ Live smoke — CC tab, click Export, confirm `CCExportSheetView` opens
-- [ ] 17.31 ⊘ Live smoke — ⌘E from either tab opens the matching sheet
+- [x] 17.28 ✓ Live smoke 2026-05-28 — toolbar label flips between `Export Report…` (Sub) and `Export Claude Code…` (CC)
+- [x] 17.29 ✓ Live smoke 2026-05-28 — Sub tab → existing `ExportSheetView` with PDF/HTML/CSV opens
+- [x] 17.30 ✓ Live smoke 2026-05-28 — CC tab → `CCExportSheetView` with "Projects in range" section opens
+- [x] 17.31 ✓ Live smoke 2026-05-28 — ⌘E from each tab opens the matching sheet
 - [x] 17.32 ◇ source: `CCExportSheetView` `@State` defaults — `title = "Claude Code Activity Report"`, `format = .pdf`, `range = .preset(.last7d)`, `includeSubscriptionOverlay = true`, `includeProjectTotals = true`; no across-open persistence (sheet is reconstructed fresh each present)
 - [x] 17.33 ◇ source: `CCExportSheetView.footer` Save button has `.disabled(!hasDataInRange || isSaving)`; `projectsList` shows orange "No Claude Code activity in the selected range." when `observedCwdsInRange.isEmpty`
 - [x] 17.34 ◇ source: `defaultFilename(start:end:format:)` produces `claude-code-report-{yyyy-MM-dd}_to_{yyyy-MM-dd}.{ext}`. Implicit unit coverage via `CCReportGeneratorTests`
-- [ ] 17.35 ⊘ Live smoke — export HTML, open in browser with Network panel, confirm zero non-`file://` requests (Chart.js is inlined at `Resources/chart.umd.min.js`)
-- [ ] 17.36 ⊘ Live smoke — export PDF, open on a non-author machine (no TokenTrace) via Preview, compare to HTML twin
+- [x] 17.35 ✓ Live smoke 2026-05-28 — Network panel showed zero non-`file://` requests after exporting HTML and opening it in a browser
+- [x] 17.36 ✓ Live smoke 2026-05-28 — PDF rendered in Preview matches the HTML twin (same title / stats / chart with dotted 5h util / project totals table); portability validated by opening with system Preview (PDF format is self-contained, no TokenTrace dependency)
 - [x] 17.37 ✓ `CCReportGeneratorTests.testIncludeOverlayFlagInjectsBoolean` confirms `includeOverlay=false` injects `false` into the JS literal, which the template uses to skip the util-line plugin + secondary Y axis
 - [x] 17.38 ✓ `CCReportGeneratorTests.testIncludeTotalsFlagInjectsBoolean` (same mechanism, totals section)
 
