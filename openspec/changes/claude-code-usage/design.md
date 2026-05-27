@@ -102,7 +102,7 @@ The **Claude Code tab** renders **a single chart** with:
 │      ▲                                      ▲       │
 │      │ ▓▓▓▓░░▒▒▒▒  ← stacked area, per project,    │
 │      │ ▓▓▓▓░░▒▒▒▒    weighted token volume         │
-│      │ ─ ╱╲ ──╱─╲   ← util% line, dashed for 7d    │
+│      │ ⋯ ╱╲ ⋯⋯╱⋯╲   ← 5h util %, dotted amber       │
 │      └────────────────────────────────────────►     │
 │      Range = active RangeSelection                  │
 └─────────────────────────────────────────────────────┘
@@ -110,7 +110,7 @@ The **Claude Code tab** renders **a single chart** with:
 
 - Left Y axis: weighted token volume, auto-scaled.
 - Right Y axis: subscription utilisation, fixed 0–100%.
-- Two utilisation series share the right axis: `five_hour` (solid) and `seven_day` (dashed).
+- One utilisation series shares the right axis: `five_hour`, rendered as a dotted amber line. `seven_day` is intentionally NOT overlaid here — the smooth ramp adds nothing on top of the 5h sawtooth plus the Peak 5h Util stat in the stats strip, and crowds the right axis. Decision logged after prototype iteration (commit `bbf5723`).
 - `chartXSelection(value: $selectedDate)` drives the cursor → unified tooltip via `chartOverlay`.
 
 For the **stacked area to render without visual artefacts at gaps**, the project-aggregation query MUST zero-fill missing buckets for each project that has any row in the active range (i.e. each project's series is rectangular in time over `[from, to]` at the chosen bucket granularity). The store, not the view, performs this zero-fill — see the spec requirement.
