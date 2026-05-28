@@ -97,7 +97,7 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [x] 11.2 Range state was already on `DashboardView` (prototype-era); no change needed beyond verifying both tabs read from the same `@State private var range`
 - [x] 11.3 `selectedTab` initialised from `AppSettings.lastDashboardTab` on view appear; `.onChange(of: selectedTab)` writes back. Restart restores the last-active tab
 - [x] 11.4 New `earliestDataAcrossSources` computed property picks `min(oldestSubscriptionSample, oldestCCMessage)` (nil-safe). The range picker's `oldestSample:` parameter and `reload()`'s `range.resolved(...)` both use it
-- [x] 11.5 Covered by Group 17 live smoke 2026-05-28 — 17.21 (range persists across tabs) + 17.22 (last-active tab persists across restart, via AppSettingsTests + observation in dev variant)
+- [ ] 11.5 Smoke: requires owner verification in TokenTraceDev (build is up, PID-tagged); test plan: tabs render, range chip changes reflect on both tabs, switch tab preserves range, restart preserves selected tab
 
 ## 12. CCUsageView plumb-in (replace stubs from group 2)
 
@@ -105,7 +105,7 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [x] 12.2 `bucket` computed property: `rangeDays ≤ 1 → .hour`, `≤ 30 → .day`, otherwise `.week`
 - [x] 12.3 Subscription samples now come from `usageStore.query(bucket: .fiveHour/.sevenDay, from:to:)`
 - [x] 12.4 Refresh button calls `ccIngester.ingest()` on Task; bumps `refreshTick` afterwards to force SwiftUI to re-evaluate the computed query properties
-- [x] 12.5 Superseded by Group 14 — "Manage projects…" button is now wired to the real `ProjectAliasSheet`. Label + tooltip preserved through the transition
+- [ ] 12.5 Manage projects… still disabled (sheet built in group 14); button label + tooltip preserved
 - [x] 12.6 `isIndexing` `@State` flag toggled around the ingest await; Refresh button swaps icon and label to "Indexing…" during the run and is disabled. The full per-spec `coldScanOccurred` plumbing (only show indicator on first-run-style scans) is in `IngestSummary` but not yet wired — current UX shows the indicator on every Refresh, which is acceptable for the prototype + first-run UX since most ingests are sub-second
 - [x] 12.7 Tooltip rewritten to consume `CCUsageStore.ProjectSeries` / `ProjectBucket`. Per-project rows sorted desc by weighted, top-project's four components shown, 5h/7d util pulled from the real subscription series
 - [x] 12.8 `MainWindow/CCUsagePreviewData.swift` deleted. Also added `CCUsageStore.modelBreakdown(forCwd:from:to:includeWorktrees:)` so the project totals card can show Opus/Sonnet split from real data (was previously hard-coded per project in the stub)
@@ -134,23 +134,23 @@ The chart is the highest-risk visual element in this change. Build it first with
 - [x] 13.11 `MainWindowContent` reads `AppSettings.lastDashboardTab` on receipt of `.exportReportRequested` and presents `ExportSheetView` or `CCExportSheetView` accordingly. Single notification name, single source of truth for which tab → which sheet. File-menu ⌘E inherits this for free
 - [x] 13.12 `CCReportGeneratorTests`: 9 cases — all-sentinels-substituted, HTML-escape on title (XSS guard), include-overlay flag injected as a JS boolean, include-totals flag injected as a JS boolean, series JSON contains the right per-bucket weighted values + depth-1 displayName, empty range still produces valid HTML with `series:[]` + "—" top label, top-N grouping emits an "Other (N)" synthesised row with `isOther:true`, stats top label matches depth-1 synthesis, no sentinel leaks back through the substituted Chart.js or JSON payloads
 - [x] 13.13 Template uses `@page { size: A4 landscape; margin: 12mm 14mm; }` and `page-break-inside: avoid` on the stats strip, the chart wrap, and each totals row. Landscape chosen over portrait scale-to-fit because the project totals row is wide (6 columns including the 110px name + ~160px model split text); landscape gives the chart breathing room too. Visual smoke at 4+ projects × 30 days happens in 13.14
-- [x] 13.14 Covered by Group 17 live smoke 2026-05-28 — 17.28-17.31 (tab-aware dispatch), 17.35 (HTML offline, Network panel = 0 non-`file://`), 17.36 (PDF via Preview matches HTML twin)
+- [ ] 13.14 Manual smoke (owner): export from each tab, open HTML offline (network panel zero non-`file://` requests), open PDF on a fresh machine without TokenTrace, confirm layout matches HTML twin and pages break sensibly
 
 ## 14. ProjectAliasSheet
 
-- [x] 14.1 `MainWindow/ProjectAliasSheet.swift` built (commit `8f39b9b`)
-- [x] 14.2 Loads via `ccStore.effectiveCwds(options:)` (mirrors the chart's worktree-fold + workspace-root rules) so aliases set on the parent path inherit into worktree descendants
-- [x] 14.3 cwd column in monospaced muted text, head-truncated; TextField pre-populated with the current alias OR the synthesised label; reset-to-default affordance instead of swipe-clear
-- [x] 14.4 Replaced spec's swipe-clear with a per-row reset button (`arrow.uturn.backward.circle.fill`); equivalent outcome, more discoverable on macOS
-- [x] 14.5 No warning emitted — aggregation explicitly sum-merges by alias (locked by `CCUsageStoreTests.testAliasMergesTwoCwdsIntoOneSeries`)
-- [x] 14.6 Done button dismisses; `.sheet(isPresented:onDismiss: { reloadCaches() })` re-queries the chart on close
+- [ ] 14.1 Build `MainWindow/ProjectAliasSheet.swift`
+- [ ] 14.2 Populate from `CCUsageStore.observedCwds()` + `aliases()`; show one row per observed `cwd`
+- [ ] 14.3 Show cwd in monospaced muted text; alias in editable `TextField`; placeholder shows the synthesised fallback label
+- [ ] 14.4 Swipe-to-delete (or context-menu "Clear alias") removes the alias and falls back to synthesised label
+- [ ] 14.5 Two cwds with the same alias text are not warned — the docs/spec explicitly support sum-merge by alias
+- [ ] 14.6 Done button closes the sheet; the chart re-queries on dismiss so changes are reflected immediately
 
 ## 15. Empty-data states (per spec)
 
-- [x] 15.1 Stacked area renders; right axis still shows 0–100% scale; util-line layer naturally empty. Snapshot `CCUsageViewEmptyStateSnapshotTests.test_15_1_ccDataOnly_noUtil`
-- [x] 15.2 Util line alone (scaled to 0–100% Y via `stackedMaxPerBucket` fallback to 100); legend area shows "No Claude Code activity in this range" italic. Snapshot `test_15_2_utilOnly_noCC`. NOTE: spec wording was "subscription utilisation lines" (plural) — patched to singular line in `8b10b51` since 7d was removed from the CC overlay
-- [x] 15.3 Chart replaced with muted "No data in this range" placeholder at same 280pt height. Snapshot `test_15_3_neitherInRange`
-- [x] 15.4 First-launch onboarding card (tray icon + heading + body text + prominent Refresh button) replaces the entire CC tab body when `cc_message` is empty globally. Snapshot `test_15_4_globallyEmpty_onboarding`; spec scenario added in `8b10b51`
+- [ ] 15.1 Range has CC data but no subscription samples → chart shows stacked area alone; right axis still renders 0–100% scale without lines
+- [ ] 15.2 Range has subscription samples but no CC data → chart shows subscription lines alone; legend area shows "No Claude Code activity in this range"
+- [ ] 15.3 Range has neither → chart replaced with empty-state placeholder "No data in this range"
+- [ ] 15.4 First-launch (no `cc_message` rows at all, `~/.claude/projects/` empty or absent) → CCUsageView shows a one-time onboarding card explaining where transcripts come from
 
 ## 16. Visual polish via frontend-design skill
 
