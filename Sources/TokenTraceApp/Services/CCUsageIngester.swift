@@ -17,6 +17,13 @@ final class CCUsageIngester {
     /// the UI never sees a stall.
     private let flushEvery: Int = 1000
 
+    /// Serial queue so concurrent `ingest()` callers (the manual Refresh
+    /// button and `UsageManager`'s background poll loop) run one full pass
+    /// after another instead of two `runSync()` racing on the same checkpoint
+    /// rows. INSERT OR IGNORE already dedups, but serialising avoids the
+    /// wasted re-scan and any checkpoint write interleaving.
+    private let queue = DispatchQueue(label: "dev.louisdeng.tokentrace.ccingest", qos: .utility)
+
     static var defaultProjectsRoot: URL {
         URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".claude/projects", isDirectory: true)
@@ -43,7 +50,7 @@ final class CCUsageIngester {
     /// previously-processed bytes are skipped via the checkpoint table.
     func ingest() async -> IngestSummary {
         await withCheckedContinuation { (cont: CheckedContinuation<IngestSummary, Never>) in
-            DispatchQueue.global(qos: .utility).async {
+            queue.async {
                 cont.resume(returning: self.runSync())
             }
         }

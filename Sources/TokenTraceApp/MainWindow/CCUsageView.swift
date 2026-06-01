@@ -268,6 +268,12 @@ struct CCUsageView: View {
         }
         .onAppear { reloadCaches() }
         .onChange(of: domain) { _ in reloadCaches() }
+        // Background poll loop ran an incremental import that inserted new
+        // rows — refresh the cached query results silently (no "Indexing…"
+        // spinner; this isn't a user-initiated Refresh).
+        .onReceive(NotificationCenter.default.publisher(for: .ccUsageDidImport)) { _ in
+            reloadCaches()
+        }
         .sheet(isPresented: $showingAliasSheet, onDismiss: { reloadCaches() }) {
             ProjectAliasSheet(ccStore: ccStore)
         }
