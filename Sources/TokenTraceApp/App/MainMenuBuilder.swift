@@ -8,6 +8,12 @@ extension Notification.Name {
     /// toolbar's Export button; observed in `MainWindowContent` to present the
     /// export sheet over any active tab.
     static let exportReportRequested = Notification.Name("dev.louisdeng.tokentrace.exportReportRequested")
+
+    /// Posted by `UsageManager`'s background poll loop after an incremental
+    /// Claude Code transcript import that inserted at least one new row;
+    /// observed in `CCUsageView` to refresh its cached query results without
+    /// a manual Refresh.
+    static let ccUsageDidImport = Notification.Name("dev.louisdeng.tokentrace.ccUsageDidImport")
 }
 
 @MainActor

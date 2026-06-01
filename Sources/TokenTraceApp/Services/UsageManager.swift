@@ -51,12 +51,15 @@ final class UsageManager: ObservableObject {
         self.sessionCookie = CookieKeychain.read() ?? ""
     }
 
-    /// Begin the polling loop. Fetches immediately, then every `pollInterval` seconds.
+    /// Begin the polling loop. Fetches immediately, then every `pollInterval`
+    /// seconds. Each tick also runs an incremental Claude Code transcript
+    /// import so the CC tab stays current without a manual Refresh.
     func start() {
         pollTask?.cancel()
         let interval = pollInterval
         pollTask = Task { [weak self] in
             await self?.fetchOnce()
+            await self?.ccIngestOnce()
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
@@ -64,7 +67,20 @@ final class UsageManager: ObservableObject {
                     return
                 }
                 await self?.fetchOnce()
+                await self?.ccIngestOnce()
             }
+        }
+    }
+
+    /// One incremental Claude Code transcript import. Reads local files only,
+    /// so unlike `fetchOnce()` it runs regardless of the session cookie. The
+    /// ingester serialises against the manual Refresh button internally, so
+    /// overlap is safe. Posts `.ccUsageDidImport` only when new rows landed,
+    /// so a visible CC tab refreshes without churning on empty passes.
+    func ccIngestOnce() async {
+        let summary = await ccIngester.ingest()
+        if summary.rowsInserted > 0 {
+            NotificationCenter.default.post(name: .ccUsageDidImport, object: nil)
         }
     }
 
