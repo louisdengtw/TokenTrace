@@ -14,7 +14,9 @@ enum ClaudeAPIError: Error, Equatable {
 
 struct TokenTraceResponse: Equatable {
     let samples: [UsageSample]
-    let hasWeeklySonnet: Bool
+    /// Model display names of `weekly_scoped` limits in this response,
+    /// in order of appearance, deduplicated.
+    let scopedModels: [String]
 }
 
 final class ClaudeAPI {
@@ -117,24 +119,62 @@ final class ClaudeAPI {
             iso.date(from: s) ?? isoNoFractional.date(from: s)
         }
 
-        let mapping: [(String, Bucket)] = [
-            ("five_hour", .fiveHour),
-            ("seven_day", .sevenDay),
-            ("seven_day_sonnet", .sevenDaySonnet)
-        ]
+        // Top-level fixed-window objects (still live; float-precision utilization).
+        func topLevelSample(_ key: String, bucket: Bucket) -> UsageSample? {
+            guard let inner = dict[key] as? [String: Any],
+                  let util = (inner["utilization"] as? NSNumber)?.doubleValue,
+                  let resetStr = inner["resets_at"] as? String,
+                  let resetsAt = parseDate(resetStr) else { return nil }
+            return UsageSample(ts: ts, bucket: bucket, util: util, resetsAt: resetsAt)
+        }
+
+        let limits = dict["limits"] as? [[String: Any]] ?? []
+
+        // limits[] entry by kind; integer `percent` fallback for fixed windows.
+        func limitSample(kind: String, bucket: Bucket) -> UsageSample? {
+            guard let entry = limits.first(where: { $0["kind"] as? String == kind }),
+                  let percent = (entry["percent"] as? NSNumber)?.doubleValue,
+                  let resetStr = entry["resets_at"] as? String,
+                  let resetsAt = parseDate(resetStr) else { return nil }
+            return UsageSample(ts: ts, bucket: bucket, util: percent, resetsAt: resetsAt)
+        }
 
         var samples: [UsageSample] = []
-        var hasWeeklySonnet = false
+        var scopedModels: [String] = []
 
-        for (key, bucket) in mapping {
-            guard let inner = dict[key] as? [String: Any] else { continue }
-            guard let util = (inner["utilization"] as? NSNumber)?.doubleValue,
-                  let resetStr = inner["resets_at"] as? String,
-                  let resetsAt = parseDate(resetStr) else {
+        if let s = topLevelSample("five_hour", bucket: .fiveHour)
+            ?? limitSample(kind: "session", bucket: .fiveHour) {
+            samples.append(s)
+        }
+        if let s = topLevelSample("seven_day", bucket: .sevenDay)
+            ?? limitSample(kind: "weekly_all", bucket: .sevenDay) {
+            samples.append(s)
+        }
+
+        // Model-scoped weekly limits. Entries without a model display name
+        // (surface scopes etc.) are skipped.
+        for entry in limits where entry["kind"] as? String == "weekly_scoped" {
+            guard let scope = entry["scope"] as? [String: Any],
+                  let model = scope["model"] as? [String: Any],
+                  let name = model["display_name"] as? String, !name.isEmpty else {
+                Logger(subsystem: "dev.louisdeng.tokentrace", category: "ClaudeAPI")
+                    .notice("skipping weekly_scoped limit without model display_name")
                 continue
             }
-            samples.append(UsageSample(ts: ts, bucket: bucket, util: util, resetsAt: resetsAt))
-            if bucket == .sevenDaySonnet { hasWeeklySonnet = true }
+            guard !scopedModels.contains(name),
+                  let percent = (entry["percent"] as? NSNumber)?.doubleValue,
+                  let resetStr = entry["resets_at"] as? String,
+                  let resetsAt = parseDate(resetStr) else { continue }
+            samples.append(UsageSample(ts: ts, bucket: .weeklyScoped(model: name), util: percent, resetsAt: resetsAt))
+            scopedModels.append(name)
+        }
+
+        // Legacy shape: non-null top-level seven_day_sonnet (old fixtures /
+        // server rollback). limits[] wins if it already produced Sonnet.
+        if !scopedModels.contains("Sonnet"),
+           let s = topLevelSample(Bucket.legacySonnetKey, bucket: .weeklyScoped(model: "Sonnet")) {
+            samples.append(s)
+            scopedModels.append("Sonnet")
         }
 
         let hasFiveHourOrSevenDay = samples.contains { $0.bucket == .fiveHour || $0.bucket == .sevenDay }
@@ -142,7 +182,7 @@ final class ClaudeAPI {
             throw ClaudeAPIError.parseError("response missing both five_hour and seven_day")
         }
 
-        return TokenTraceResponse(samples: samples, hasWeeklySonnet: hasWeeklySonnet)
+        return TokenTraceResponse(samples: samples, scopedModels: scopedModels)
     }
 
     static func extractOrgIdFromCookie(_ cookie: String) -> String? {

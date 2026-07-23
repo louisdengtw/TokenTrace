@@ -4,11 +4,20 @@ import SwiftUI
 /// Stats-style menu bar icon: three stacked label/percentage columns.
 /// Rendered to an `NSImage` via `ImageRenderer` and assigned to the `NSStatusBarButton`.
 struct StatsIconView: View {
+    /// One model-scoped weekly column, labeled by the first three letters of
+    /// the server-provided model name (e.g. "FAB" for Fable).
+    struct ScopedColumn: Identifiable {
+        let model: String
+        let value: Double?
+        var id: String { model }
+        var label: String { String(model.prefix(3)).uppercased() }
+    }
+
     /// `nil` percentages render as a dash placeholder so the icon stays
     /// the same width before the first poll has landed.
     let fiveHour: Double?
     let sevenDay: Double?
-    let sevenDaySonnet: Double?
+    var scopedColumns: [ScopedColumn] = []
 
     /// `ImageRenderer` does not honor `.environment(\.colorScheme)`, so the
     /// caller passes the current scheme explicitly to drive label / value contrast.
@@ -18,8 +27,8 @@ struct StatsIconView: View {
         HStack(spacing: 7) {
             column(label: "5H",  value: fiveHour)
             column(label: "7D",  value: sevenDay)
-            if sevenDaySonnet != nil {
-                column(label: "SON", value: sevenDaySonnet)
+            ForEach(scopedColumns) { scoped in
+                column(label: scoped.label, value: scoped.value)
             }
         }
         .padding(.horizontal, 1)

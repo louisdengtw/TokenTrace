@@ -2,7 +2,7 @@
 
 ## Purpose
 
-SwiftUI Charts–based historical view in TokenTrace's main window: two stacked trend charts (5-hour and 7-day utilization), vertical dashed lines marking reset events, multi-line plotting for `seven_day` plus `seven_day_sonnet`, a 24h / 7d / 30d / All range selector, hover tooltips, and reactive updates when a new poll lands.
+SwiftUI Charts–based historical view in TokenTrace's main window: two stacked trend charts (5-hour and 7-day utilization), vertical dashed lines marking reset events, multi-line plotting for `seven_day` plus any model-scoped weekly series (dynamically labelled by model name), a 24h / 7d / 30d / All range selector, hover tooltips, and reactive updates when a new poll lands.
 ## Requirements
 ### Requirement: Two stacked trend charts
 
@@ -32,21 +32,26 @@ Each chart SHALL render a vertical dashed line at every reset event detected by 
 
 - **WHEN** the visible time range spans 14 days
 - **THEN** the bottom chart shows up to 2 vertical dashed lines at the `seven_day` reset times
-- **AND** the same set of vertical lines applies to both `seven_day` and `seven_day_sonnet` (resets coincide)
+- **AND** the same set of vertical lines applies to `seven_day` and every model-scoped weekly series (resets coincide)
 
 ### Requirement: Multi-line plotting on the weekly chart
 
-The 7-day chart SHALL render two distinct lines when both `seven_day` and `seven_day_sonnet` data exist: one labeled "Overall" and one labeled "Sonnet", each visually distinguishable (different color or style).
+The 7-day chart SHALL render one line labeled "Overall" for `seven_day`, plus one additional visually distinguishable line per model-scoped weekly series present in the visible range, each labeled with its model display name (e.g. "Fable", "Sonnet"). Line colors SHALL be assigned deterministically per model name; the "Sonnet" series keeps its historical color.
 
-#### Scenario: Pro user with Sonnet data
+#### Scenario: Scoped Fable data in range
 
-- **WHEN** samples for both `seven_day` and `seven_day_sonnet` exist in range
-- **THEN** the chart shows two lines with a legend identifying each
+- **WHEN** samples for both `seven_day` and the "Fable" scoped series exist in range
+- **THEN** the chart shows two lines with a legend identifying "Overall" and "Fable"
 
-#### Scenario: Non-Pro user without Sonnet data
+#### Scenario: Range spanning a model rotation
 
-- **WHEN** no `seven_day_sonnet` samples exist in range
-- **THEN** the chart shows only the "Overall" line and the legend omits "Sonnet"
+- **WHEN** the visible range contains a historical "Sonnet" scoped tail and a current "Fable" scoped series
+- **THEN** the chart shows three lines — "Overall", "Sonnet", and "Fable" — each with a distinct color
+
+#### Scenario: No scoped data in range
+
+- **WHEN** no model-scoped samples exist in range
+- **THEN** the chart shows only the "Overall" line and the legend omits scoped entries
 
 ### Requirement: Range selector controls visible time window
 
@@ -78,10 +83,10 @@ Each chart SHALL show a tooltip when the user hovers over a data point, displayi
 - **WHEN** the user moves the cursor over a sample on the top chart
 - **THEN** a tooltip appears near the cursor showing the timestamp and the utilization value
 
-#### Scenario: Hovering over the weekly chart with two lines
+#### Scenario: Hovering over the weekly chart with multiple lines
 
-- **WHEN** the user hovers near a point on the weekly chart
-- **THEN** the tooltip shows both the Overall and Sonnet values for the nearest sample
+- **WHEN** the user hovers near a point on the weekly chart while scoped series are displayed
+- **THEN** the tooltip shows the Overall value and each scoped model's value (labeled by model name) for the nearest sample
 
 ### Requirement: Reactive updates on new samples
 

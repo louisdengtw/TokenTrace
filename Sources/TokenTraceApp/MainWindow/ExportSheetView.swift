@@ -16,7 +16,10 @@ struct ExportSheetView: View {
     @State private var range: RangeSelection = .preset(.last7d)
     @State private var fiveHourEnabled: Bool = true
     @State private var sevenDayEnabled: Bool = true
-    @State private var sonnetEnabled: Bool = false
+    /// Model-scoped weekly series present anywhere in the store; populated on
+    /// appear. All default to unchecked per the spec.
+    @State private var scopedModels: [String] = []
+    @State private var scopedEnabled: Set<String> = []
 
     @State private var saveError: String?
     @State private var isSaving: Bool = false
@@ -28,8 +31,17 @@ struct ExportSheetView: View {
         var s: Set<Bucket> = []
         if fiveHourEnabled { s.insert(.fiveHour) }
         if sevenDayEnabled { s.insert(.sevenDay) }
-        if sonnetEnabled   { s.insert(.sevenDaySonnet) }
+        for model in scopedEnabled { s.insert(.weeklyScoped(model: model)) }
         return s
+    }
+
+    private func scopedBinding(_ model: String) -> Binding<Bool> {
+        Binding(
+            get: { scopedEnabled.contains(model) },
+            set: { on in
+                if on { scopedEnabled.insert(model) } else { scopedEnabled.remove(model) }
+            }
+        )
     }
 
     private var totalSamplesInRange: Int {
@@ -72,9 +84,11 @@ struct ExportSheetView: View {
             }
             field(label: "Buckets") {
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle("5-hour Window",          isOn: $fiveHourEnabled)
-                    Toggle("7-day Window",           isOn: $sevenDayEnabled)
-                    Toggle("7-day Window — Sonnet",  isOn: $sonnetEnabled)
+                    Toggle("5-hour Window", isOn: $fiveHourEnabled)
+                    Toggle("7-day Window",  isOn: $sevenDayEnabled)
+                    ForEach(scopedModels, id: \.self) { model in
+                        Toggle("7-day Window — \(model)", isOn: scopedBinding(model))
+                    }
                 }
                 .toggleStyle(.checkbox)
             }
@@ -91,6 +105,11 @@ struct ExportSheetView: View {
         }
         .padding(22)
         .frame(width: 460)
+        .onAppear {
+            let now = Date()
+            scopedModels = usageManager.store.distinctScopedModels(
+                from: oldestSample ?? now, to: now)
+        }
     }
 
     // MARK: - Subviews

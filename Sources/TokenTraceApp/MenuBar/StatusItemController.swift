@@ -203,9 +203,12 @@ final class StatusItemController: NSObject {
         let view = StatsIconView(
             fiveHour: usageManager.latestSample[.fiveHour]?.util,
             sevenDay: usageManager.latestSample[.sevenDay]?.util,
-            sevenDaySonnet: usageManager.hasWeeklySonnet
-                ? usageManager.latestSample[.sevenDaySonnet]?.util
-                : nil,
+            scopedColumns: usageManager.scopedModels.map {
+                StatsIconView.ScopedColumn(
+                    model: $0,
+                    value: usageManager.latestSample[.weeklyScoped(model: $0)]?.util
+                )
+            },
             scheme: scheme
         )
 

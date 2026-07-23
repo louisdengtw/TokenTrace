@@ -11,20 +11,13 @@ product, repo, and bundle ID are all `TokenTrace` / `dev.louisdeng.tokentrace`.
 
 ## Start here
 
-Active in-flight change: `openspec/changes/claude-code-usage/`. Adds the Claude
-Code tab (transcript-derived usage analysis from `~/.claude/projects/`) and a
-tab-aware Export Report.
-
-| File | What |
-|---|---|
-| `proposal.md` | Why + scope |
-| `design.md` | Architecture decisions |
-| `specs/<capability>/spec.md` | Per-capability requirements & scenarios |
-| `tasks.md` | 19 groups; progress via `openspec status --change claude-code-usage` |
-
-Earlier in-flight work is archived under `openspec/changes/archive/`:
+No active in-flight change. Requirements live in `openspec/specs/` (9
+capabilities, kept in sync at archive time); history is under
+`openspec/changes/archive/`:
 - `2026-05-07-rewrite-as-claudeusage` — original rewrite/rename (Decision 1 has a 2026-05-07 amendment)
-- `2026-05-13-cookie-import`, `2026-05-13-main-window-quit-affordance`, `2026-05-14-usage-export` — incrementals between then and now
+- `2026-05-13-cookie-import`, `2026-05-13-main-window-quit-affordance`, `2026-05-14-usage-export` — incrementals
+- `2026-05-28-claude-code-usage` — Claude Code tab + tab-aware Export Report
+- `2026-07-23-dynamic-scoped-limits` — `limits[]` parsing + dynamic model-scoped weekly series (replaced hardcoded `seven_day_sonnet`)
 
 ## Salvage map (only one file is genuinely upstream-derived)
 
@@ -104,14 +97,14 @@ open /Applications/TokenTrace.app
 
 ## Current state
 
-- v1.0 → v1.1 (cookie-import, tagged + released 2026-05-12) → v1.2 (this
-  change, plist bumped 2026-05-28; usage-export shipped without a release
-  in between).
-- All 19 groups of `claude-code-usage` done; change is on branch
-  `feat/claude-code-usage`, ready for PR review + merge + archive.
+- v1.0 → v1.1 (cookie-import, tagged + released 2026-05-12) → v1.2
+  (claude-code-usage, plist bumped 2026-05-28; usage-export shipped without
+  a release in between).
+- `dynamic-scoped-limits` merged via PR #16 (2026-07-23): scoped weekly
+  series are now dynamic (`Bucket.weeklyScoped(model:)`, currently "Fable").
 - Subscription tab, menu bar accessory, Keychain cookie, threshold
-  notifications, HTML/PDF report export, range chip + custom picker, and
-  the new Claude Code tab + tab-aware Export — all live.
+  notifications, HTML/PDF report export, range chip + custom picker,
+  Claude Code tab + tab-aware Export, dynamic scoped-model series — all live.
 
 ## Export Report feature
 
@@ -189,9 +182,22 @@ depth — handy for build dirs or scripts that sit alongside the repo.
 
 ```
 GET https://claude.ai/api/bootstrap                       → .account.lastActiveOrgId
-GET https://claude.ai/api/organizations/{org_id}/usage    → {five_hour, seven_day, seven_day_sonnet}
-                                                            each: { utilization (0-100), resets_at (ISO8601) }
+GET https://claude.ai/api/organizations/{org_id}/usage    → {five_hour, seven_day, limits[], ...}
 ```
+
+`five_hour` / `seven_day`: `{ utilization (0-100 float), resets_at (ISO8601) }`
+— still live and preferred. All other legacy `seven_day_*` keys
+(`seven_day_sonnet`, `_opus`, `_cowork`, …) are permanent `null` tombstones
+(verified 2026-07-23).
+
+`limits[]` is the current canonical structure:
+`{ kind: session|weekly_all|weekly_scoped, percent (int), resets_at, scope }`.
+`weekly_scoped` carries the model-specific weekly cap with the model name in
+`scope.model.display_name` (currently "Fable") — the app captures every such
+entry dynamically (`Bucket.weeklyScoped(model:)`, stored as
+`weekly_scoped:<model>`; legacy `seven_day_sonnet` rows merge into the Sonnet
+scoped series at query time). Which model gets a scoped cap is server-decided;
+client traffic can't create one.
 
 Auth: full Cookie header pasted from browser (`sessionKey` is httpOnly so JS
 can't grab it; embedded WebView OAuth is blocked by Google Identity Services).

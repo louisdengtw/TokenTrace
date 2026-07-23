@@ -16,10 +16,10 @@ final class ClaudeAPIParserTests: XCTestCase {
 
         let response = try ClaudeAPI.parseUsage(data: data, at: pollTime)
         XCTAssertEqual(response.samples.count, 3)
-        XCTAssertTrue(response.hasWeeklySonnet)
+        XCTAssertEqual(response.scopedModels, ["Sonnet"])
 
         let buckets = Set(response.samples.map(\.bucket))
-        XCTAssertEqual(buckets, [.fiveHour, .sevenDay, .sevenDaySonnet])
+        XCTAssertEqual(buckets, [.fiveHour, .sevenDay, .weeklyScoped(model: "Sonnet")])
 
         let fiveHour = try XCTUnwrap(response.samples.first(where: { $0.bucket == .fiveHour }))
         XCTAssertEqual(fiveHour.util, 47.0, accuracy: 0.001)
@@ -37,8 +37,88 @@ final class ClaudeAPIParserTests: XCTestCase {
 
         let response = try ClaudeAPI.parseUsage(data: data, at: pollTime)
         XCTAssertEqual(response.samples.count, 2)
-        XCTAssertFalse(response.hasWeeklySonnet)
-        XCTAssertFalse(response.samples.contains(where: { $0.bucket == .sevenDaySonnet }))
+        XCTAssertTrue(response.scopedModels.isEmpty)
+        XCTAssertFalse(response.samples.contains(where: { $0.bucket == .weeklyScoped(model: "Sonnet") }))
+    }
+
+    func testParsesLimitsArrayWithScopedFable() throws {
+        let json = """
+        {
+            "five_hour":        { "utilization": 1.0, "resets_at": "2026-07-23T09:59:59.726886+00:00" },
+            "seven_day":        { "utilization": 3.0, "resets_at": "2026-07-25T01:59:59.726914+00:00" },
+            "seven_day_sonnet": null,
+            "seven_day_opus":   null,
+            "limits": [
+                { "kind": "session",       "group": "session", "percent": 1, "resets_at": "2026-07-23T09:59:59.726886+00:00", "scope": null, "is_active": false },
+                { "kind": "weekly_all",    "group": "weekly",  "percent": 3, "resets_at": "2026-07-25T01:59:59.726914+00:00", "scope": null, "is_active": false },
+                { "kind": "weekly_scoped", "group": "weekly",  "percent": 5, "resets_at": "2026-07-25T01:59:59.727215+00:00",
+                  "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null }, "is_active": true }
+            ]
+        }
+        """
+        let response = try ClaudeAPI.parseUsage(data: json.data(using: .utf8)!, at: pollTime)
+
+        XCTAssertEqual(response.scopedModels, ["Fable"])
+        XCTAssertEqual(response.samples.count, 3)
+
+        // Fixed windows come from the float top-level objects, not limits[].
+        let fiveHour = try XCTUnwrap(response.samples.first(where: { $0.bucket == .fiveHour }))
+        XCTAssertEqual(fiveHour.util, 1.0, accuracy: 0.001)
+
+        let fable = try XCTUnwrap(response.samples.first(where: { $0.bucket == .weeklyScoped(model: "Fable") }))
+        XCTAssertEqual(fable.util, 5.0, accuracy: 0.001)
+        // Null seven_day_sonnet tombstone must not produce a Sonnet series.
+        XCTAssertFalse(response.samples.contains(where: { $0.bucket == .weeklyScoped(model: "Sonnet") }))
+    }
+
+    func testFallsBackToLimitsWhenTopLevelKeysMissing() throws {
+        let json = """
+        {
+            "limits": [
+                { "kind": "session",    "group": "session", "percent": 40, "resets_at": "2026-07-23T09:59:59Z", "scope": null },
+                { "kind": "weekly_all", "group": "weekly",  "percent": 12, "resets_at": "2026-07-25T01:59:59Z", "scope": null }
+            ]
+        }
+        """
+        let response = try ClaudeAPI.parseUsage(data: json.data(using: .utf8)!, at: pollTime)
+        XCTAssertEqual(response.samples.count, 2)
+        let fiveHour = try XCTUnwrap(response.samples.first(where: { $0.bucket == .fiveHour }))
+        XCTAssertEqual(fiveHour.util, 40.0, accuracy: 0.001)
+    }
+
+    func testSkipsScopedLimitWithoutModelName() throws {
+        let json = """
+        {
+            "five_hour": { "utilization": 1.0, "resets_at": "2026-07-23T09:59:59Z" },
+            "seven_day": { "utilization": 3.0, "resets_at": "2026-07-25T01:59:59Z" },
+            "limits": [
+                { "kind": "weekly_scoped", "group": "weekly", "percent": 9, "resets_at": "2026-07-25T01:59:59Z",
+                  "scope": { "model": null, "surface": "cowork" } }
+            ]
+        }
+        """
+        let response = try ClaudeAPI.parseUsage(data: json.data(using: .utf8)!, at: pollTime)
+        XCTAssertEqual(response.samples.count, 2)
+        XCTAssertTrue(response.scopedModels.isEmpty)
+    }
+
+    func testLimitsWinOverLegacySonnetKeyForSameModel() throws {
+        let json = """
+        {
+            "five_hour":        { "utilization": 1.0,  "resets_at": "2026-07-23T09:59:59Z" },
+            "seven_day":        { "utilization": 3.0,  "resets_at": "2026-07-25T01:59:59Z" },
+            "seven_day_sonnet": { "utilization": 99.0, "resets_at": "2026-07-25T01:59:59Z" },
+            "limits": [
+                { "kind": "weekly_scoped", "group": "weekly", "percent": 5, "resets_at": "2026-07-25T01:59:59Z",
+                  "scope": { "model": { "id": null, "display_name": "Sonnet" }, "surface": null } }
+            ]
+        }
+        """
+        let response = try ClaudeAPI.parseUsage(data: json.data(using: .utf8)!, at: pollTime)
+        XCTAssertEqual(response.scopedModels, ["Sonnet"])
+        let sonnet = response.samples.filter { $0.bucket == .weeklyScoped(model: "Sonnet") }
+        XCTAssertEqual(sonnet.count, 1)
+        XCTAssertEqual(sonnet[0].util, 5.0, accuracy: 0.001)
     }
 
     func testRejectsMalformedResponse() {

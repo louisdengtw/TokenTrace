@@ -78,11 +78,65 @@ final class UsageStoreTests: XCTestCase {
         store.insert(samples: [
             UsageSample(ts: ts, bucket: .fiveHour, util: 10, resetsAt: r),
             UsageSample(ts: ts, bucket: .sevenDay, util: 20, resetsAt: r),
-            UsageSample(ts: ts, bucket: .sevenDaySonnet, util: 30, resetsAt: r)
+            UsageSample(ts: ts, bucket: .weeklyScoped(model: "Fable"), util: 30, resetsAt: r)
         ])
         XCTAssertEqual(store.query(bucket: .fiveHour, from: ts, to: ts).first?.util, 10)
         XCTAssertEqual(store.query(bucket: .sevenDay, from: ts, to: ts).first?.util, 20)
-        XCTAssertEqual(store.query(bucket: .sevenDaySonnet, from: ts, to: ts).first?.util, 30)
+        XCTAssertEqual(store.query(bucket: .weeklyScoped(model: "Fable"), from: ts, to: ts).first?.util, 30)
+    }
+
+    func testBucketKeyRoundTrip() {
+        for bucket: Bucket in [.fiveHour, .sevenDay, .weeklyScoped(model: "Fable")] {
+            XCTAssertEqual(Bucket(key: bucket.key), bucket)
+        }
+        // Legacy key maps into the Sonnet scoped series.
+        XCTAssertEqual(Bucket(key: "seven_day_sonnet"), .weeklyScoped(model: "Sonnet"))
+        XCTAssertNil(Bucket(key: "weekly_scoped:"))
+        XCTAssertNil(Bucket(key: "bogus"))
+    }
+
+    func testLegacySonnetRowsMergeIntoScopedSonnetSeries() throws {
+        let store = try UsageStore(url: dbURL)
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let r = base.addingTimeInterval(3600)
+
+        // Simulate a pre-change row stored under the legacy key by writing it
+        // through the legacy bucket mapping (key round-trips to the old string).
+        try insertRawRow(store: store, ts: base, bucketKey: "seven_day_sonnet", util: 40, resetsAt: r)
+        store.insert(samples: [
+            UsageSample(ts: base.addingTimeInterval(60), bucket: .weeklyScoped(model: "Sonnet"), util: 45, resetsAt: r)
+        ])
+
+        let rows = store.query(bucket: .weeklyScoped(model: "Sonnet"), from: base, to: base.addingTimeInterval(120))
+        XCTAssertEqual(rows.map(\.util), [40, 45])
+    }
+
+    func testDistinctScopedModels() throws {
+        let store = try UsageStore(url: dbURL)
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let r = base.addingTimeInterval(3600)
+
+        try insertRawRow(store: store, ts: base, bucketKey: "seven_day_sonnet", util: 40, resetsAt: r)
+        store.insert(samples: [
+            UsageSample(ts: base, bucket: .fiveHour, util: 10, resetsAt: r),
+            UsageSample(ts: base.addingTimeInterval(60), bucket: .weeklyScoped(model: "Fable"), util: 5, resetsAt: r)
+        ])
+
+        let inRange = store.distinctScopedModels(from: base, to: base.addingTimeInterval(120))
+        XCTAssertEqual(inRange, ["Fable", "Sonnet"])
+
+        // Window excluding the legacy row only reports Fable.
+        let laterOnly = store.distinctScopedModels(from: base.addingTimeInterval(30), to: base.addingTimeInterval(120))
+        XCTAssertEqual(laterOnly, ["Fable"])
+    }
+
+    /// Writes a row with an arbitrary bucket key, bypassing `Bucket` — used to
+    /// fabricate legacy on-disk rows.
+    private func insertRawRow(store: UsageStore, ts: Date, bucketKey: String, util: Double, resetsAt: Date) throws {
+        try store.executeForTesting("""
+        INSERT OR REPLACE INTO samples (ts, bucket, util, resets_at)
+        VALUES (\(Int(ts.timeIntervalSince1970)), '\(bucketKey)', \(util), \(Int(resetsAt.timeIntervalSince1970)));
+        """)
     }
 
     func testQueryReturnsRowsInAscendingOrder() throws {
