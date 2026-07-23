@@ -51,7 +51,7 @@ struct MenuBarPreviewView: View {
 
     private var orderedBuckets: [Bucket] {
         var b: [Bucket] = [.fiveHour, .sevenDay]
-        if usageManager.hasWeeklySonnet { b.append(.sevenDaySonnet) }
+        b.append(contentsOf: usageManager.scopedModels.map { .weeklyScoped(model: $0) })
         return b
     }
 
@@ -59,7 +59,7 @@ struct MenuBarPreviewView: View {
         switch bucket {
         case .fiveHour: return "5-hour session"
         case .sevenDay: return "7-day overall"
-        case .sevenDaySonnet: return "7-day Sonnet"
+        case .weeklyScoped(let model): return "7-day \(model)"
         }
     }
 

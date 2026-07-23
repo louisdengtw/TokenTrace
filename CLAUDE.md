@@ -189,9 +189,22 @@ depth — handy for build dirs or scripts that sit alongside the repo.
 
 ```
 GET https://claude.ai/api/bootstrap                       → .account.lastActiveOrgId
-GET https://claude.ai/api/organizations/{org_id}/usage    → {five_hour, seven_day, seven_day_sonnet}
-                                                            each: { utilization (0-100), resets_at (ISO8601) }
+GET https://claude.ai/api/organizations/{org_id}/usage    → {five_hour, seven_day, limits[], ...}
 ```
+
+`five_hour` / `seven_day`: `{ utilization (0-100 float), resets_at (ISO8601) }`
+— still live and preferred. All other legacy `seven_day_*` keys
+(`seven_day_sonnet`, `_opus`, `_cowork`, …) are permanent `null` tombstones
+(verified 2026-07-23).
+
+`limits[]` is the current canonical structure:
+`{ kind: session|weekly_all|weekly_scoped, percent (int), resets_at, scope }`.
+`weekly_scoped` carries the model-specific weekly cap with the model name in
+`scope.model.display_name` (currently "Fable") — the app captures every such
+entry dynamically (`Bucket.weeklyScoped(model:)`, stored as
+`weekly_scoped:<model>`; legacy `seven_day_sonnet` rows merge into the Sonnet
+scoped series at query time). Which model gets a scoped cap is server-decided;
+client traffic can't create one.
 
 Auth: full Cookie header pasted from browser (`sessionKey` is httpOnly so JS
 can't grab it; embedded WebView OAuth is blocked by Google Identity Services).

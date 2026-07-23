@@ -96,7 +96,7 @@ struct MainWindowContent: View {
                     Text("TokenTrace")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(-0.08)
-                    Text(usageManager.hasWeeklySonnet
+                    Text(!usageManager.scopedModels.isEmpty
                          ? "v\(Self.appVersion) · Pro+"
                          : "v\(Self.appVersion)")
                         .font(.system(size: 10, design: .monospaced))

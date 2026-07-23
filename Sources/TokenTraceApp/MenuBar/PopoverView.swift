@@ -28,7 +28,7 @@ struct PopoverView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .tracking(-0.06)
 
-                if usageManager.hasWeeklySonnet {
+                if !usageManager.scopedModels.isEmpty {
                     Text("PRO+")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(0.4)
@@ -141,15 +141,15 @@ struct PopoverView: View {
 
     private var orderedBuckets: [Bucket] {
         var buckets: [Bucket] = [.fiveHour, .sevenDay]
-        if usageManager.hasWeeklySonnet { buckets.append(.sevenDaySonnet) }
+        buckets.append(contentsOf: usageManager.scopedModels.map { .weeklyScoped(model: $0) })
         return buckets
     }
 
     private func cardLabel(for bucket: Bucket) -> String {
         switch bucket {
-        case .fiveHour:        return "5-hour"
-        case .sevenDay:        return "7-day"
-        case .sevenDaySonnet:  return "Sonnet"
+        case .fiveHour:                 return "5-hour"
+        case .sevenDay:                 return "7-day"
+        case .weeklyScoped(let model):  return model
         }
     }
 
@@ -159,7 +159,7 @@ struct PopoverView: View {
         switch bucket {
         case .fiveHour:
             from = now.addingTimeInterval(-2 * 3600)
-        case .sevenDay, .sevenDaySonnet:
+        case .sevenDay, .weeklyScoped:
             from = now.addingTimeInterval(-24 * 3600)
         }
         let recent = usageManager.store.query(bucket: bucket, from: from, to: now).suffix(12)

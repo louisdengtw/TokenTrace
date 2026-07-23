@@ -31,8 +31,19 @@ struct ReportGenerator {
         case unresolvedTokens([String])
     }
 
-    /// All buckets in canonical order — used for both filtering + ordering.
-    static let canonicalBucketOrder: [Bucket] = [.fiveHour, .sevenDay, .sevenDaySonnet]
+    /// Canonical section order: the fixed windows, then model-scoped weekly
+    /// buckets sorted by model name.
+    static func canonicalOrder(_ buckets: Set<Bucket>) -> [Bucket] {
+        var ordered: [Bucket] = []
+        if buckets.contains(.fiveHour) { ordered.append(.fiveHour) }
+        if buckets.contains(.sevenDay) { ordered.append(.sevenDay) }
+        let scoped = buckets.compactMap { bucket -> String? in
+            guard case .weeklyScoped(let model) = bucket else { return nil }
+            return model
+        }
+        ordered.append(contentsOf: scoped.sorted().map { .weeklyScoped(model: $0) })
+        return ordered
+    }
 
     /// Generate the report HTML. `now` is injected for determinism. `dbPath`
     /// is the source path stamped into the footer (cosmetic only).
@@ -44,7 +55,7 @@ struct ReportGenerator {
         let oldest = store.oldestTimestamp()
         let (start, end) = request.range.resolved(now: now, oldestSample: oldest)
 
-        let orderedBuckets = Self.canonicalBucketOrder.filter { request.buckets.contains($0) }
+        let orderedBuckets = Self.canonicalOrder(request.buckets)
 
         var bucketPayloads: [BucketJSON] = []
         for bucket in orderedBuckets {
@@ -114,7 +125,7 @@ struct ReportGenerator {
         }
 
         return BucketJSON(
-            id: bucket.rawValue,
+            id: bucket.key,
             label: label(for: bucket),
             subtitle: subtitle(for: bucket),
             color: color(for: bucket),
@@ -128,26 +139,27 @@ struct ReportGenerator {
 
     private func label(for bucket: Bucket) -> String {
         switch bucket {
-        case .fiveHour:        return "5-Hour Window"
-        case .sevenDay:        return "7-Day Window"
-        case .sevenDaySonnet:  return "7-Day Window — Sonnet"
+        case .fiveHour:                 return "5-Hour Window"
+        case .sevenDay:                 return "7-Day Window"
+        case .weeklyScoped(let model):  return "7-Day Window — \(model)"
         }
     }
 
     private func subtitle(for bucket: Bucket) -> String {
         switch bucket {
-        case .fiveHour:        return "Rolling 5-hour usage · resets every 5h"
-        case .sevenDay:        return "Weekly usage · resets each Monday"
-        case .sevenDaySonnet:  return "Weekly Sonnet usage · resets each Monday"
+        case .fiveHour:                 return "Rolling 5-hour usage · resets every 5h"
+        case .sevenDay:                 return "Weekly usage · resets each Monday"
+        case .weeklyScoped(let model):  return "Weekly \(model) usage · resets each Monday"
         }
     }
 
-    /// Wong (2011) color-blind-safe palette.
+    /// Wong (2011) color-blind-safe palette; scoped buckets get a stable
+    /// per-model color from `ScopedSeriesColor`.
     private func color(for bucket: Bucket) -> String {
         switch bucket {
-        case .fiveHour:        return "#0072B2"  // blue
-        case .sevenDay:        return "#D55E00"  // vermillion
-        case .sevenDaySonnet:  return "#009E73"  // bluish-green
+        case .fiveHour:                 return "#0072B2"  // blue
+        case .sevenDay:                 return "#D55E00"  // vermillion
+        case .weeklyScoped(let model):  return ScopedSeriesColor.hex(for: model)
         }
     }
 

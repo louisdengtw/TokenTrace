@@ -7,7 +7,7 @@ struct DashboardView: View {
     @State private var range: RangeSelection = AppSettings.dashboardRangeSelection
     @State private var fiveHour: [UsageSample] = []
     @State private var sevenDay: [UsageSample] = []
-    @State private var sevenDaySonnet: [UsageSample] = []
+    @State private var scopedSeries: [ScopedSeriesData] = []
     @State private var domain: ClosedRange<Date> = Date()...Date()
     @State private var selectedTab: DashboardTab = AppSettings.lastDashboardTab
 
@@ -62,12 +62,11 @@ struct DashboardView: View {
                 )
                 ChartCard(
                     title: "7-day window",
-                    subtitle: usageManager.hasWeeklySonnet
-                        ? "Weekly usage · overall and Sonnet"
-                        : "Weekly usage · resets each Monday",
+                    subtitle: scopedSeries.isEmpty
+                        ? "Weekly usage · resets each Monday"
+                        : "Weekly usage · overall and \(scopedSeries.map(\.model).joined(separator: ", "))",
                     samples: sevenDay,
-                    secondarySamples: usageManager.hasWeeklySonnet ? sevenDaySonnet : nil,
-                    secondaryLabel: "Sonnet",
+                    scopedSeries: scopedSeries,
                     domain: domain
                 )
             }
@@ -129,9 +128,14 @@ struct DashboardView: View {
             oldestSample: earliestDataAcrossSources
         )
         domain = from...to
-        fiveHour       = usageManager.store.query(bucket: .fiveHour,       from: from, to: to)
-        sevenDay       = usageManager.store.query(bucket: .sevenDay,       from: from, to: to)
-        sevenDaySonnet = usageManager.store.query(bucket: .sevenDaySonnet, from: from, to: to)
+        fiveHour = usageManager.store.query(bucket: .fiveHour, from: from, to: to)
+        sevenDay = usageManager.store.query(bucket: .sevenDay, from: from, to: to)
+        scopedSeries = usageManager.store.distinctScopedModels(from: from, to: to).map { model in
+            ScopedSeriesData(
+                model: model,
+                samples: usageManager.store.query(bucket: .weeklyScoped(model: model), from: from, to: to)
+            )
+        }
     }
 
     /// The earlier of the subscription `samples` oldest timestamp and the
@@ -152,12 +156,18 @@ struct DashboardView: View {
 
 // MARK: - Chart card
 
+/// One model-scoped weekly series for overlay on the 7-day chart.
+struct ScopedSeriesData: Identifiable, Equatable {
+    let model: String
+    let samples: [UsageSample]
+    var id: String { model }
+}
+
 private struct ChartCard: View {
     let title: String
     let subtitle: String
     let samples: [UsageSample]
-    var secondarySamples: [UsageSample]? = nil
-    var secondaryLabel: String = ""
+    var scopedSeries: [ScopedSeriesData] = []
     let domain: ClosedRange<Date>
 
     @Environment(\.colorScheme) private var scheme
@@ -168,12 +178,12 @@ private struct ChartCard: View {
         let primaryColor = chartColor(samples: samples)
         let nearestPrimary = selectedDate.flatMap { findNearest(to: $0, in: samples) }
             ?? samples.last
-        let yMax = adaptiveYMax(primary: samples, secondary: secondarySamples)
+        let yMax = adaptiveYMax(primary: samples, scoped: scopedSeries)
 
         VStack(alignment: .leading, spacing: 12) {
             header(displaySample: nearestPrimary, primaryColor: primaryColor)
 
-            if samples.isEmpty && (secondarySamples?.isEmpty ?? true) {
+            if samples.isEmpty && scopedSeries.allSatisfy({ $0.samples.isEmpty }) {
                 emptyState
             } else {
                 chartBody(
@@ -241,11 +251,19 @@ private struct ChartCard: View {
             statChip(label: "Avg",  value: formatAvg(avg))
             divider
             statChip(label: "n",    value: "\(samples.count)")
-            if secondarySamples != nil {
+            ForEach(scopedSeries) { series in
                 divider
-                statChip(label: secondaryLabel, value: "\(secondarySamples?.count ?? 0)")
+                statChip(label: series.model, value: scopedChipValue(series))
             }
         }
+    }
+
+    /// Hovered (or latest) utilization of a scoped series, for the stats chip.
+    private func scopedChipValue(_ series: ScopedSeriesData) -> String {
+        let sample = selectedDate.flatMap { findNearest(to: $0, in: series.samples) }
+            ?? series.samples.last
+        guard let sample else { return "—" }
+        return "\(Int(sample.util.rounded()))%"
     }
 
     private var divider: some View {
@@ -274,8 +292,8 @@ private struct ChartCard: View {
         value < 10 ? String(format: "%.1f%%", value) : "\(Int(value.rounded()))%"
     }
 
-    private func adaptiveYMax(primary: [UsageSample], secondary: [UsageSample]?) -> Double {
-        let all = primary.map(\.util) + (secondary?.map(\.util) ?? [])
+    private func adaptiveYMax(primary: [UsageSample], scoped: [ScopedSeriesData]) -> Double {
+        let all = primary.map(\.util) + scoped.flatMap { $0.samples.map(\.util) }
         let observed = all.max() ?? 0
         if observed <= 20 { return 25 }
         if observed <= 45 { return 50 }
@@ -323,16 +341,16 @@ private struct ChartCard: View {
                 .interpolationMethod(.monotone)
             }
 
-            // Optional secondary line (Sonnet on the 7-day chart)
-            if let secondary = secondarySamples {
-                let secondaryColor = chartColor(samples: secondary).opacity(0.85)
-                ForEach(secondary, id: \.ts) { sample in
+            // Model-scoped weekly lines (e.g. Fable on the 7-day chart)
+            ForEach(scopedSeries) { series in
+                let seriesColor = ScopedSeriesColor.color(for: series.model).opacity(0.85)
+                ForEach(series.samples, id: \.ts) { sample in
                     LineMark(
                         x: .value("Time", sample.ts),
                         y: .value("Util %", sample.util),
-                        series: .value("Series", secondaryLabel)
+                        series: .value("Series", series.model)
                     )
-                    .foregroundStyle(secondaryColor)
+                    .foregroundStyle(seriesColor)
                     .lineStyle(StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round, dash: [3, 2]))
                     .interpolationMethod(.monotone)
                 }

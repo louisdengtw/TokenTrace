@@ -84,7 +84,7 @@ final class UsageStore {
                     try insertOne(sample, sql: sql)
                 }
             } catch {
-                log.error("insert failed for bucket=\(sample.bucket.rawValue, privacy: .public): \(String(describing: error), privacy: .public)")
+                log.error("insert failed for bucket=\(sample.bucket.key, privacy: .public): \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -97,7 +97,7 @@ final class UsageStore {
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_int64(stmt, 1, sqlite3_int64(sample.ts.timeIntervalSince1970))
-        sqlite3_bind_text(stmt, 2, sample.bucket.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sample.bucket.key, -1, SQLITE_TRANSIENT)
         sqlite3_bind_double(stmt, 3, sample.util)
         sqlite3_bind_int64(stmt, 4, sqlite3_int64(sample.resetsAt.timeIntervalSince1970))
 
@@ -107,10 +107,22 @@ final class UsageStore {
         }
     }
 
+    /// Storage keys matching a bucket. The Sonnet scoped series spans two
+    /// keys: pre-limits[] rows stored as `seven_day_sonnet` plus new rows
+    /// stored as `weekly_scoped:Sonnet`.
+    private static func storageKeys(for bucket: Bucket) -> [String] {
+        if case .weeklyScoped(let model) = bucket, model == "Sonnet" {
+            return [bucket.key, Bucket.legacySonnetKey]
+        }
+        return [bucket.key]
+    }
+
     func query(bucket: Bucket, from: Date, to: Date) -> [UsageSample] {
+        let keys = Self.storageKeys(for: bucket)
+        let placeholders = keys.map { _ in "?" }.joined(separator: ", ")
         let sql = """
         SELECT ts, util, resets_at FROM samples
-        WHERE bucket = ? AND ts >= ? AND ts <= ?
+        WHERE bucket IN (\(placeholders)) AND ts >= ? AND ts <= ?
         ORDER BY ts ASC;
         """
         var stmt: OpaquePointer?
@@ -120,9 +132,11 @@ final class UsageStore {
         }
         defer { sqlite3_finalize(stmt) }
 
-        sqlite3_bind_text(stmt, 1, bucket.rawValue, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int64(stmt, 2, sqlite3_int64(from.timeIntervalSince1970))
-        sqlite3_bind_int64(stmt, 3, sqlite3_int64(to.timeIntervalSince1970))
+        for (i, key) in keys.enumerated() {
+            sqlite3_bind_text(stmt, Int32(i + 1), key, -1, SQLITE_TRANSIENT)
+        }
+        sqlite3_bind_int64(stmt, Int32(keys.count + 1), sqlite3_int64(from.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, Int32(keys.count + 2), sqlite3_int64(to.timeIntervalSince1970))
 
         var rows: [UsageSample] = []
         while true {
@@ -147,6 +161,34 @@ final class UsageStore {
         return rows
     }
 
+    /// Distinct scoped model names with at least one sample in the window,
+    /// sorted. Legacy `seven_day_sonnet` rows count as "Sonnet".
+    func distinctScopedModels(from: Date, to: Date) -> [String] {
+        let sql = """
+        SELECT DISTINCT bucket FROM samples
+        WHERE (bucket LIKE 'weekly_scoped:%' OR bucket = ?) AND ts >= ? AND ts <= ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            log.error("distinctScopedModels prepare failed: \(String(cString: sqlite3_errmsg(self.db)), privacy: .public)")
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, Bucket.legacySonnetKey, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(stmt, 2, sqlite3_int64(from.timeIntervalSince1970))
+        sqlite3_bind_int64(stmt, 3, sqlite3_int64(to.timeIntervalSince1970))
+
+        var models: Set<String> = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let cKey = sqlite3_column_text(stmt, 0),
+                  let bucket = Bucket(key: String(cString: cKey)),
+                  case .weeklyScoped(let model) = bucket else { continue }
+            models.insert(model)
+        }
+        return models.sorted()
+    }
+
     func oldestTimestamp() -> Date? {
         let sql = "SELECT MIN(ts) FROM samples;"
         var stmt: OpaquePointer?
@@ -156,6 +198,12 @@ final class UsageStore {
         if sqlite3_column_type(stmt, 0) == SQLITE_NULL { return nil }
         let ts = sqlite3_column_int64(stmt, 0)
         return Date(timeIntervalSince1970: TimeInterval(ts))
+    }
+
+    /// Test hook: run raw SQL (e.g. to fabricate legacy on-disk rows whose
+    /// bucket keys `Bucket` no longer writes).
+    func executeForTesting(_ sql: String) throws {
+        try execute(sql)
     }
 
     private func execute(_ sql: String) throws {

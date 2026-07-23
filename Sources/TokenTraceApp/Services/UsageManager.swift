@@ -7,7 +7,9 @@ final class UsageManager: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var hasFetchedData: Bool = false
-    @Published private(set) var hasWeeklySonnet: Bool = false
+    /// Model display names of `weekly_scoped` limits in the latest poll
+    /// (e.g. ["Fable"]). Empty when the server reports no scoped limit.
+    @Published private(set) var scopedModels: [String] = []
     @Published private(set) var sessionExpired: Bool = false
     @Published private(set) var sessionCookie: String = ""
 
@@ -121,7 +123,7 @@ final class UsageManager: ObservableObject {
         sessionCookie = ""
         latestSample = [:]
         hasFetchedData = false
-        hasWeeklySonnet = false
+        scopedModels = []
         errorMessage = nil
         sessionExpired = false
         notifiedThresholdsThisWindow = []
@@ -168,7 +170,7 @@ final class UsageManager: ObservableObject {
             merged[sample.bucket] = sample
         }
         latestSample = merged
-        hasWeeklySonnet = response.hasWeeklySonnet
+        scopedModels = response.scopedModels
         hasFetchedData = true
         evaluateThresholdCrossings()
     }
