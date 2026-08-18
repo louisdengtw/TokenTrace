@@ -41,12 +41,34 @@ and refined UI"). No notice there.
 - Bundle ID: **`dev.louisdeng.tokentrace`**. Never `com.claude.usagebar` —
   macOS 26 has it blacklisted (see "If menu bar icon disappears" below).
 - Self-signed cert in login keychain: `F690B9DA81D392695487D52D35F6B37E7A362495`
-  ("LouisLocalSign"). Build script prefers it, falls back to ad-hoc.
+  ("LouisLocalSign", valid to 2027-05-06). Build script just attempts the
+  signature and falls back to ad-hoc only if `codesign` actually fails.
 - Min macOS: **14.0** (SwiftUI Charts `chartXSelection` + clean dual-Y-axis for the Claude Code tab).
 - After rebuild, always `pkill -x TokenTrace` before `open` — `open` won't
   replace a running app of the same bundle ID.
-- Every rebuild invalidates Accessibility grant and prompts Keychain again.
-  Not a bug; ad-hoc signing's fault.
+- Ad-hoc signing (the fallback path) makes the code signature change on every
+  rebuild, which invalidates the Accessibility grant and re-prompts Keychain.
+  Signed with LouisLocalSign the identity is stable, so those grants should
+  persist across rebuilds.
+- Confirm which path a build took: `codesign -dv --verbose=2
+  /Applications/TokenTrace.app` → `Authority=LouisLocalSign` means the cert
+  was used; no `Authority` line at all means ad-hoc.
+
+### If the build silently falls back to ad-hoc
+
+Usually the cert is still there and only its **trust settings** were reset.
+`security find-identity -v -p codesigning` reports `0 valid identities` while
+plain `security find-identity` shows the cert with `CSSMERR_TP_NOT_TRUSTED`
+(seen 2026-08-18). `codesign` signs fine in that state, so the build script
+deliberately does not pre-check for the identity. To restore trust:
+
+```sh
+security find-certificate -c LouisLocalSign -p > /tmp/louislocalsign.pem
+security add-trusted-cert -r trustRoot -p codeSign /tmp/louislocalsign.pem
+```
+
+That pops a GUI auth dialog and blocks until it is answered — run it where you
+can see the prompt, not under a command timeout.
 
 ## If menu bar icon disappears (macOS 26 bundle ID poisoning)
 
