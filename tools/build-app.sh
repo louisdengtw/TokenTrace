@@ -78,16 +78,14 @@ printf 'APPL????' > "${CONTENTS}/PkgInfo"
 xattr -cr "${APP_PATH}"
 
 echo "==> Signing"
-if security find-certificate -Z -c "${SIGN_CERT_HASH}" >/dev/null 2>&1 \
-   || security find-identity -p codesigning -v 2>/dev/null | grep -qi "${SIGN_CERT_HASH}"; then
-    if codesign --force --deep --sign "${SIGN_CERT_HASH}" "${APP_PATH}" 2>/dev/null; then
-        echo "    signed with self-signed cert ${SIGN_CERT_HASH}"
-    else
-        echo "    self-signed cert lookup matched but signing failed — falling back to ad-hoc"
-        codesign --force --deep --sign - "${APP_PATH}"
-    fi
+# Just attempt the signature rather than pre-checking for the identity:
+# `security find-identity -v` hides certs whose trust settings were reset,
+# but `codesign` signs with them fine, so a pre-check only produces false
+# negatives and a silent downgrade to ad-hoc.
+if codesign --force --deep --sign "${SIGN_CERT_HASH}" "${APP_PATH}" 2>/dev/null; then
+    echo "    signed with self-signed cert ${SIGN_CERT_HASH}"
 else
-    echo "    self-signed cert ${SIGN_CERT_HASH} not present — using ad-hoc signature"
+    echo "    self-signed cert ${SIGN_CERT_HASH} unusable — using ad-hoc signature"
     codesign --force --deep --sign - "${APP_PATH}"
 fi
 
